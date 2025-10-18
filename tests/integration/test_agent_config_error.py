@@ -11,6 +11,7 @@ def test_invalid_yaml_logs_error_and_skips_agent(tmp_path, capsys):
 
     # Act: attempt to load
     from src.config.loader import load_agent_configs  # to be implemented
+
     configs = load_agent_configs(target_dir)
 
     # Assert: bad agent skipped

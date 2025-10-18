@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 
 from src.core.models.session import Session
 
@@ -27,7 +27,8 @@ def test_session_history_default_is_not_shared_between_instances():
     assert s1.history == []
     assert s2.history == []
 
-    s1.history.append({"role": "user", "content": "Hello"})
+    data = {"role": "user", "content": "Hello"}
+    s1.history.append(data)
 
-    assert s1.history == [{"role": "user", "content": "Hello"}]
+    assert s1.history == [data]
     assert s2.history == []

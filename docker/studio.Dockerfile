@@ -1,5 +1,5 @@
 # Dockerfile for AI Agent Hosting Application
-FROM python:3.11-slim
+FROM python:3.14-slim
 
 # Prevent Python from writing .pyc files and enable output buffering
 ENV PYTHONDONTWRITEBYTECODE=1 \

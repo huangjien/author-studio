@@ -1,9 +1,12 @@
 from typing import Dict, List, Optional
+
 from pydantic import BaseModel, Field
+
 
 class WorkflowConfig(BaseModel):
     type: Optional[str] = None
     human_in_loop: Optional[str] = None
+
 
 class AgentConfig(BaseModel):
     name: str

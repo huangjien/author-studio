@@ -52,5 +52,6 @@ class SessionService:
         else:
             self.file.save(f"session_{session.session_id}", json.loads(session.model_dump_json()))
 
+
 # Singleton instance for easy use
 session_service = SessionService()

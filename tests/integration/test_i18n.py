@@ -1,4 +1,5 @@
 import os
+
 from fastapi.testclient import TestClient
 
 API_KEY = "test-key"
@@ -29,8 +30,8 @@ tools: []
 
 def test_i18n_accept_language_spanish(tmp_path):
     target_dir = setup_env(tmp_path)
-    from src.main import app  # import after env set
     from src.agents.registry import AgentRegistry
+    from src.main import app  # import after env set
 
     registry = AgentRegistry()
     registry.reload(dir_path=target_dir)
@@ -49,8 +50,8 @@ def test_i18n_accept_language_spanish(tmp_path):
 
 def test_i18n_accept_language_spanish_region(tmp_path):
     target_dir = setup_env(tmp_path)
-    from src.main import app
     from src.agents.registry import AgentRegistry
+    from src.main import app
 
     registry = AgentRegistry()
     registry.reload(dir_path=target_dir)
@@ -68,8 +69,8 @@ def test_i18n_accept_language_spanish_region(tmp_path):
 
 def test_i18n_fallback_to_english(tmp_path):
     target_dir = setup_env(tmp_path)
-    from src.main import app
     from src.agents.registry import AgentRegistry
+    from src.main import app
 
     registry = AgentRegistry()
     registry.reload(dir_path=target_dir)
@@ -87,8 +88,8 @@ def test_i18n_fallback_to_english(tmp_path):
 
 def test_i18n_q_value_weighting(tmp_path):
     target_dir = setup_env(tmp_path)
-    from src.main import app
     from src.agents.registry import AgentRegistry
+    from src.main import app
 
     registry = AgentRegistry()
     registry.reload(dir_path=target_dir)

@@ -1,5 +1,5 @@
-from src.core.models.agent_config import AgentConfig, WorkflowConfig
 from src.agents.loader import build_agent
+from src.core.models.agent_config import AgentConfig, WorkflowConfig
 
 
 def test_build_agent_creates_expected_agent_id_and_fields():

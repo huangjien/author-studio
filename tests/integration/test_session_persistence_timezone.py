@@ -1,5 +1,5 @@
-import os
 import json
+import os
 from datetime import datetime
 
 from fastapi.testclient import TestClient
@@ -35,6 +35,7 @@ def test_persisted_session_created_at_is_timezone_aware(tmp_path):
 
     # Patch session_service to use a tmp .data directory
     from src.services.session_service import session_service
+
     tmp_data_dir = os.path.join(str(tmp_path), ".data")
     os.makedirs(tmp_data_dir, exist_ok=True)
     # Switch the file store base_dir to tmp path for isolation
@@ -42,10 +43,12 @@ def test_persisted_session_created_at_is_timezone_aware(tmp_path):
 
     # Ensure registry sees the agent
     from src.agents.registry import AgentRegistry
+
     registry = AgentRegistry()
     registry.reload(dir_path=target_dir)
 
     from src.main import app
+
     client = TestClient(app)
 
     resp = client.post(

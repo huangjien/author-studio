@@ -4,9 +4,9 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
+from src.agents.registry import AgentRegistry
 from src.api.security import verify_api_key
 from src.services import agent_service
-from src.agents.registry import AgentRegistry
 
 logger = logging.getLogger(__name__)
 

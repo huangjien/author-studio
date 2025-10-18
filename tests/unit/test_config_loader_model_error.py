@@ -1,7 +1,8 @@
 import importlib
 
+
 def test_loader_skips_when_model_instantiation_fails(tmp_path):
-    # Create a valid-looking config that passes validator but fails AgentConfig due to wrong type for 'tools'
+    # Create config that passes validator but fails AgentConfig due to wrong 'tools' type
     cfg_dir = tmp_path / "agent_configs"
     cfg_dir.mkdir()
     bad = cfg_dir / "bad_tools.yaml"
@@ -20,6 +21,7 @@ tools:
     )
 
     import src.config.loader as loader
+
     importlib.reload(loader)
 
     # Should log and skip the bad file, returning empty list

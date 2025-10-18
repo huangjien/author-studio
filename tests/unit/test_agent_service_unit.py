@@ -1,5 +1,6 @@
-import os
 import importlib
+import os
+
 import pytest
 
 
@@ -26,6 +27,7 @@ prompts:
 def test_invoke_agent_success_direct_call(tmp_path):
     setup_env(tmp_path)
     import src.services.agent_service as svc
+
     importlib.reload(svc)
 
     result = svc.invoke_agent("alpha-bot", "Hello")
@@ -37,6 +39,7 @@ def test_invoke_agent_success_direct_call(tmp_path):
 def test_invoke_agent_raises_keyerror_for_unknown_agent(tmp_path):
     setup_env(tmp_path)
     import src.services.agent_service as svc
+
     importlib.reload(svc)
 
     with pytest.raises(KeyError):

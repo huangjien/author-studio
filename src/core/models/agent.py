@@ -1,5 +1,7 @@
 from typing import Dict, List
+
 from pydantic import BaseModel, Field
+
 
 class Agent(BaseModel):
     agent_id: str

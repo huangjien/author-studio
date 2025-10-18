@@ -40,10 +40,15 @@ def parse_accept_language(header_value: Optional[str]) -> List[str]:
     return ordered
 
 
-def choose_language(available: Iterable[str], accept_language: Optional[str], default: str = "en") -> str:
+def choose_language(
+    available: Iterable[str],
+    accept_language: Optional[str],
+    default: str = "en",
+) -> str:
     """Choose best language from available keys based on Accept-Language.
     Case-insensitive matching for both exact and base language fallbacks.
-    Returns the original available key if found, otherwise default if present, otherwise the first available key.
+    Returns the original available key if found, otherwise default if present,
+    otherwise the first available key.
     """
     available_list = list(available)
     if not available_list:
@@ -64,7 +69,10 @@ def choose_language(available: Iterable[str], accept_language: Optional[str], de
     return available_list[0]
 
 
-def get_localized_prompt(prompts: Dict[str, str], accept_language: Optional[str]) -> Tuple[str, Optional[str]]:
+def get_localized_prompt(
+    prompts: Dict[str, str],
+    accept_language: Optional[str],
+) -> Tuple[str, Optional[str]]:
     """Return (selected_language_key, prompt_text) based on language preference.
     If no prompt is found, returns (selected_key, None).
     """

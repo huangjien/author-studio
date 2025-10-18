@@ -1,4 +1,4 @@
-from src.services.cache import SimpleLRUCache, cache_set, cache_get, cache_clear
+from src.services.cache import SimpleLRUCache, cache_clear, cache_get, cache_set
 
 
 def test_simple_lru_eviction_when_exceeding_maxsize():

@@ -1,8 +1,8 @@
 import os
 
-import pytest
-
 from src.agents.registry import AgentRegistry
+
+# Removed unused pytest import
 
 
 def test_registry_logs_on_reload(tmp_path, caplog):

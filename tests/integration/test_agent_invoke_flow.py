@@ -1,4 +1,5 @@
 import os
+
 from fastapi.testclient import TestClient
 
 API_KEY = "test-key"
@@ -28,8 +29,8 @@ def setup_env(tmp_path):
 
 def test_end_to_end_invoke_flow_success_and_session_continue(tmp_path):
     target_dir = setup_env(tmp_path)
-    from src.main import app  # import after env set
     from src.agents.registry import AgentRegistry
+    from src.main import app  # import after env set
 
     # Ensure registry has the agent
     registry = AgentRegistry()
@@ -64,6 +65,7 @@ def test_end_to_end_invoke_flow_success_and_session_continue(tmp_path):
 def test_invoke_returns_401_when_api_key_invalid(tmp_path):
     setup_env(tmp_path)
     from src.main import app
+
     client = TestClient(app)
 
     resp = client.post(

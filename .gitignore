@@ -178,3 +178,4 @@ cython_debug/
 .vscode/
 coverage/
 .data/
+key.txt

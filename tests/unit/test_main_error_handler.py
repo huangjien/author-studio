@@ -1,8 +1,10 @@
-import json
 import asyncio
+import json
+
 
 def test_unhandled_exception_handler_returns_500():
     from starlette.requests import Request
+
     from src.main import unhandled_exception_handler
 
     scope = {

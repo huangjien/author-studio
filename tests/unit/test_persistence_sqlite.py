@@ -1,5 +1,4 @@
 import asyncio
-import pytest
 
 
 class DummyExecute:
@@ -24,6 +23,7 @@ class DummyExecute:
                 return self
             # SELECT is used with async with, not awaited in our code path
             return self
+
         return _run().__await__()
 
     async def __aenter__(self):
@@ -71,13 +71,24 @@ class DummyAioSqlite:
 def test_sqlite_store_save_and_load(monkeypatch, tmp_path):
     # Patch aiosqlite with dummy implementation
     import src.services.persistence as persistence
-    monkeypatch.setattr(persistence, "aiosqlite", DummyAioSqlite(), raising=True)
+
+    monkeypatch.setattr(
+        persistence,
+        "aiosqlite",
+        DummyAioSqlite(),
+        raising=True,
+    )
 
     store = persistence.SQLiteStore(db_path=str(tmp_path / "app.db"))
 
     async def run_flow():
         await store.init()
-        await store.save_session("s1", "agent-1", "active", "[\"hello\"]")
+        await store.save_session(
+            "s1",
+            "agent-1",
+            "active",
+            '["hello"]',
+        )
         loaded = await store.load_session("s1")
         return loaded
 
@@ -98,14 +109,25 @@ def test_sqlite_store_save_and_load(monkeypatch, tmp_path):
 
 def test_sqlite_store_unavailable_is_noop(monkeypatch, tmp_path):
     import src.services.persistence as persistence
+
     # Simulate aiosqlite missing
-    monkeypatch.setattr(persistence, "aiosqlite", None, raising=True)
+    monkeypatch.setattr(
+        persistence,
+        "aiosqlite",
+        None,
+        raising=True,
+    )
 
     store = persistence.SQLiteStore(db_path=str(tmp_path / "app.db"))
 
     async def run_flow():
         await store.init()  # should not raise
-        await store.save_session("s2", "agent-2", "active", "[]")  # should not raise
+        await store.save_session(
+            "s2",
+            "agent-2",
+            "active",
+            "[]",
+        )  # should not raise
         return await store.load_session("s2")
 
     loaded = asyncio.run(run_flow())

@@ -1,0 +1,9 @@
+name: Qwen3 8B
+llm:
+  provider: ollama
+  model: qwen3:8b
+workflow:
+  type: single_step
+prompts:
+  en: "You are Qwen3 8B running on Ollama. Reply concisely."
+tools: []

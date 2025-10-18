@@ -8,8 +8,9 @@ def test_load_valid_config_on_startup(tmp_path):
     os.makedirs(target_dir, exist_ok=True)
     yaml_path = os.path.join(target_dir, "example_agent.yaml")
     with open(yaml_path, "w") as f:
-        f.write(textwrap.dedent(
-            """
+        f.write(
+            textwrap.dedent(
+                """
             name: example_agent
             llm:
               provider: openai
@@ -23,10 +24,12 @@ def test_load_valid_config_on_startup(tmp_path):
             tools:
               - web_search
             """
-        ))
+            )
+        )
 
     # Act: Use the loader to read configs
     from src.config.loader import load_agent_configs  # to be implemented
+
     configs = load_agent_configs(target_dir)
 
     # Assert: at least one config loaded

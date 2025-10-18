@@ -1,15 +1,19 @@
 import logging
-import os
+from typing import Optional
 
-DEFAULT_LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] %(message)s"
 
-LOG_FORMAT = (
-    "%(asctime)s %(levelname)s [%(name)s] %(message)s"
-)
 
-def init_logging(level: str | None = None) -> None:
-    """Initialize application logging with a sane default format and level."""
-    log_level = getattr(logging, (level or DEFAULT_LOG_LEVEL), logging.INFO)
-    logging.basicConfig(level=log_level, format=LOG_FORMAT)
-    logging.getLogger("uvicorn.access").setLevel(logging.INFO)
-    logging.getLogger("uvicorn.error").setLevel(logging.INFO)
+def init_logging(level: int = logging.INFO, logfile: Optional[str] = None) -> None:
+    logger = logging.getLogger()
+    logger.setLevel(level)
+    formatter = logging.Formatter(LOG_FORMAT)
+    for handler in list(logger.handlers):
+        logger.removeHandler(handler)
+    stdout = logging.StreamHandler()
+    stdout.setFormatter(formatter)
+    logger.addHandler(stdout)
+    if logfile:
+        file_handler = logging.FileHandler(logfile)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)

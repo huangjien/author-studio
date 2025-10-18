@@ -1,4 +1,8 @@
-from src.core.i18n import parse_accept_language, choose_language, get_localized_prompt
+from src.core.i18n import (
+    choose_language,
+    get_localized_prompt,
+    parse_accept_language,
+)
 
 
 def test_parse_accept_language_handles_invalid_q():

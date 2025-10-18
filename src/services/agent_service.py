@@ -1,15 +1,21 @@
 from typing import Optional
 
 from src.agents.registry import AgentRegistry
-from src.services.session_service import session_service
 from src.core.i18n import get_localized_prompt
 from src.services.cache import memoize
+from src.services.session_service import session_service
 
 # For testing and observability of caching behavior
 compute_output_call_count = 0
 
+
 @memoize
-def compute_output(agent_id: str, input_text: str, selected_lang: str, prompt_text: Optional[str]) -> str:
+def compute_output(
+    agent_id: str,
+    input_text: str,
+    selected_lang: str,
+    prompt_text: Optional[str],
+) -> str:
     global compute_output_call_count
     compute_output_call_count += 1
     prefix = prompt_text or ""
@@ -19,7 +25,12 @@ def compute_output(agent_id: str, input_text: str, selected_lang: str, prompt_te
         return f"[{agent_id}] Echo: {input_text}"
 
 
-def invoke_agent(agent_id: str, input_text: str, session_id: Optional[str] = None, language: Optional[str] = None) -> dict:
+def invoke_agent(
+    agent_id: str,
+    input_text: str,
+    session_id: Optional[str] = None,
+    language: Optional[str] = None,
+) -> dict:
     """Minimal agent invocation for US2 & US4.
     - Looks up agent by id
     - Creates/continues a session
@@ -35,7 +46,9 @@ def invoke_agent(agent_id: str, input_text: str, session_id: Optional[str] = Non
 
     # Create/continue session
     if session_id:
-        session = session_service.continue_session(session_id) or session_service.create_session(agent_id)
+        session = session_service.continue_session(session_id) or session_service.create_session(
+            agent_id
+        )
     else:
         session = session_service.create_session(agent_id)
 
@@ -46,7 +59,9 @@ def invoke_agent(agent_id: str, input_text: str, session_id: Optional[str] = Non
     output = compute_output(agent.agent_id, input_text, selected_lang, prompt_text)
 
     # Update session history with language-aware content
-    session.history.append({"role": "user", "content": input_text, "language": language or selected_lang})
+    session.history.append(
+        {"role": "user", "content": input_text, "language": language or selected_lang}
+    )
     session.history.append({"role": "agent", "content": output, "language": selected_lang})
 
     # Persist minimal history update

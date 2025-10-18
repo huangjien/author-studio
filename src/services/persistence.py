@@ -8,6 +8,7 @@ try:
 except Exception:  # pragma: no cover - optional dependency
     aiosqlite = None
 
+
 class FileStore:
     def __init__(self, base_dir: str = ".data") -> None:
         self.base_dir = base_dir
@@ -26,6 +27,7 @@ class FileStore:
             return None
         with open(path, "r") as f:
             return json.load(f)
+
 
 class SQLiteStore:
     def __init__(self, db_path: str = ".data/app.db") -> None:
@@ -53,12 +55,21 @@ class SQLiteStore:
             )
             await db.commit()
 
-    async def save_session(self, session_id: str, agent_id: str, status: str, history_json: str) -> None:
+    async def save_session(
+        self,
+        session_id: str,
+        agent_id: str,
+        status: str,
+        history_json: str,
+    ) -> None:
         if not self._available:
             return
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute(
-                "INSERT OR REPLACE INTO sessions(session_id, agent_id, status, history) VALUES (?, ?, ?, ?)",
+                (
+                    "INSERT OR REPLACE INTO sessions(session_id, agent_id, status, history) "
+                    "VALUES (?, ?, ?, ?)"
+                ),
                 (session_id, agent_id, status, history_json),
             )
             await db.commit()

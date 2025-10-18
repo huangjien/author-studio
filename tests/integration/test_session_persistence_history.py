@@ -1,6 +1,6 @@
-import os
-import json
 import importlib
+import json
+import os
 
 from fastapi.testclient import TestClient
 
@@ -36,20 +36,26 @@ def test_persisted_session_history_includes_role_entries_and_echo(tmp_path):
 
     # Reload settings and services to pick up env changes within the same test session
     import src.config.env as env_module
+
     importlib.reload(env_module)
     import src.services.session_service as session_module
+
     importlib.reload(session_module)
     import src.services.agent_service as agent_module
+
     importlib.reload(agent_module)
 
     # Ensure registry sees the agent
     from src.agents.registry import AgentRegistry
+
     registry = AgentRegistry()
     registry.reload(dir_path=target_dir)
 
     import src.main as main_module
+
     importlib.reload(main_module)
     from src.main import app
+
     client = TestClient(app)
 
     input_text = "Hello persistence!"

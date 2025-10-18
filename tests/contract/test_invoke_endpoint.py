@@ -1,6 +1,6 @@
 import os
+
 from fastapi.testclient import TestClient
-import pytest
 
 # Contract: POST /agents/{agent_id}/invoke
 # - 200 on success with JSON {agent_id, session_id, output}
@@ -35,8 +35,8 @@ def setup_env(tmp_path):
 
 def test_invoke_success_returns_200_with_output(tmp_path):
     target_dir = setup_env(tmp_path)
-    from src.main import app  # import after env set
     from src.agents.registry import AgentRegistry
+    from src.main import app  # import after env set
 
     # Load registry from temp configs to ensure agent exists
     registry = AgentRegistry()
@@ -58,6 +58,7 @@ def test_invoke_success_returns_200_with_output(tmp_path):
 def test_invoke_unknown_agent_returns_404(tmp_path):
     setup_env(tmp_path)
     from src.main import app
+
     client = TestClient(app)
 
     resp = client.post(
@@ -69,8 +70,9 @@ def test_invoke_unknown_agent_returns_404(tmp_path):
 
 
 def test_invoke_internal_error_returns_500(tmp_path, monkeypatch):
-    target_dir = setup_env(tmp_path)
+    setup_env(tmp_path)
     from src.main import app
+
     client = TestClient(app)
 
     # Monkeypatch the service to raise
@@ -79,8 +81,14 @@ def test_invoke_internal_error_returns_500(tmp_path, monkeypatch):
     def boom(*args, **kwargs):
         raise RuntimeError("Kaboom")
 
-    # If service not yet implemented, skip monkeypatching; test will still fail due to missing endpoint
-    monkeypatch.setattr(agent_service_module, "invoke_agent", boom, raising=False)
+    # If service is not yet implemented, skip monkeypatching.
+    # The test will still fail due to missing endpoint.
+    monkeypatch.setattr(
+        agent_service_module,
+        "invoke_agent",
+        boom,
+        raising=False,
+    )
 
     resp = client.post(
         "/agents/alpha-bot/invoke",

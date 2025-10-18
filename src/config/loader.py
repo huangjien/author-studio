@@ -5,8 +5,8 @@ from typing import List
 
 import yaml
 
-from src.core.models.agent_config import AgentConfig
 from src.config.validator import validate_config
+from src.core.models.agent_config import AgentConfig
 
 logger = logging.getLogger(__name__)
 

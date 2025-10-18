@@ -33,7 +33,7 @@ Tests: Per the project constitution and prompt requirements, tests are required.
 ## Phase 1: Setup (Shared Infrastructure)
 
 - [X] T001 Create project structure per plan.md: `src/api/`, `src/agents/`, `src/config/`, `src/services/`, `src/core/`, `src/main.py`, `tests/{contract,integration,unit}/`, `agent_configs/`, `Dockerfile`, `requirements.txt`
-- [X] T002 Initialize Python 3.11 project dependencies in `requirements.txt` (FastAPI, uvicorn, httpx, PyYAML, pydantic, pytest, black, isort, flake8, sqlite3/aiosqlite, cachetools)
+- [X] T002 Initialize Python 3.14 project dependencies in `requirements.txt` (FastAPI, uvicorn, httpx, PyYAML, pydantic, pytest, black, isort, flake8, sqlite3/aiosqlite, cachetools)
 - [X] T003 [P] Configure formatting/linting in `pyproject.toml` (black, isort, flake8 rules) and add `pre-commit` config
 - [X] T004 [P] Create base `.gitignore` and `.dockerignore` at repo root aligned with Python & Docker best practices
 
@@ -110,7 +110,7 @@ Tests: Per the project constitution and prompt requirements, tests are required.
 - [X] T030 [P] [US3] Script/test: Run container and hit API `tests/integration/test_docker_run.py`
 
 ### Implementation for User Story 3
-- [X] T031 [US3] Create `Dockerfile` at repo root (Python 3.11, uvicorn, mount `agent_configs/`)
+- [X] T031 [US3] Create `Dockerfile` at repo root (Python 3.14, uvicorn, mount `agent_configs/`)
 - [X] T032 [US3] Create `.dockerignore` at repo root
 - [X] T033 [US3] Add container entrypoint (uvicorn) and environment wiring in `Dockerfile`
 - [X] T034 [US3] Document container usage in `quickstart.md` (verify paths & `host.docker.internal` note)

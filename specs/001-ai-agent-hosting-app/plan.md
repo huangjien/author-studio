@@ -11,7 +11,7 @@ This plan outlines the development of a multi-agent AI hosting application. The 
 
 ## Technical Context
 
-**Language/Version**: Python 3.11
+**Language/Version**: Python 3.14
 **Primary Dependencies**: FastAPI (for REST API), AutoGen, OpenAI SDK, Anthropic SDK, httpx (for other clients), PyYAML, `uv` (for package management)
 **Storage**: Local file system (initially, with hooks for SQLite later)
 **Testing**: pytest

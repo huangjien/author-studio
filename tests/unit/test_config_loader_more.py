@@ -1,5 +1,4 @@
 import os
-import importlib
 
 from src.config.loader import load_agent_configs
 
@@ -15,7 +14,8 @@ def test_load_agent_configs_handles_valid_and_invalid_files(tmp_path, monkeypatc
     monkeypatch.setenv("AGENT_CONFIG_DIR", target_dir)
 
     # 1) Valid config
-    write_file(os.path.join(target_dir, "good.yaml"),
+    write_file(
+        os.path.join(target_dir, "good.yaml"),
         """
 name: Good Bot
 llm:
@@ -26,11 +26,12 @@ workflow:
 prompts:
   en: "Hello"
 tools: []
-        """
+        """,
     )
 
     # 2) Invalid YAML syntax -> parse error path
-    write_file(os.path.join(target_dir, "invalid_yaml.yaml"),
+    write_file(
+        os.path.join(target_dir, "invalid_yaml.yaml"),
         """
 name: Bad YAML
 llm:
@@ -40,22 +41,24 @@ workflow
   type: single_step
 prompts:
   en: "Hello"
-        """
+        """,
     )
 
     # 3) Invalid schema (missing required keys) -> validator not ok
-    write_file(os.path.join(target_dir, "bad_schema.yaml"),
+    write_file(
+        os.path.join(target_dir, "bad_schema.yaml"),
         """
 name: Missing Keys Bot
 llm:
   provider: openai
   model: gpt-4o-mini
 # missing workflow and prompts
-        """
+        """,
     )
 
     # 4) Build failure (wrong type for workflow)
-    write_file(os.path.join(target_dir, "bad_build.yaml"),
+    write_file(
+        os.path.join(target_dir, "bad_build.yaml"),
         """
 name: Wrong Type Bot
 llm:
@@ -64,7 +67,7 @@ llm:
 workflow: 123
 prompts:
   en: "Hello"
-        """
+        """,
     )
 
     configs = load_agent_configs(dir_path=target_dir)

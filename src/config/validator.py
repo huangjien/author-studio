@@ -1,4 +1,4 @@
-from typing import Dict, List, Tuple, Any
+from typing import Any, Dict, List, Tuple
 
 REQUIRED_KEYS = ["name", "llm", "workflow", "prompts"]
 
