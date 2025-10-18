@@ -1,0 +1,19 @@
+# Docker ignore patterns for Python backend
+.git/
+.gitignore
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.so
+*.o
+*.log*
+.env
+.env.*
+.vscode/
+.idea/
+coverage/
+.data/
+dist/
+build/
+Dockerfile*

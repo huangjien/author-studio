@@ -1,0 +1,11 @@
+
+        name: Alpha Bot
+        llm:
+          provider: openai
+          model: gpt-4o-mini
+        workflow:
+          type: single_step
+        prompts:
+          en: "Hello"
+        tools: []
+        

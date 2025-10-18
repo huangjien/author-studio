@@ -58,6 +58,10 @@ As a user, I want to interact with an agent and receive responses in my preferre
 1. **Given** a request with an `Accept-Language` header for a supported language, **When** the agent responds, **Then** the response content is in the requested language.
 2. **Given** a request with an `Accept-Language` header for an unsupported language, **When** the agent responds, **Then** the response content defaults to English.
 
+Implementation notes:
+- The API response includes a `selected_language` field indicating the language key applied.
+- Language selection honors `Accept-Language` q-values and falls back to base tags (e.g., `es-ES` → `es`).
+
 ### Edge Cases
 - What happens when an agent's underlying LLM API is unavailable or returns an error?
 - How does the system handle a sudden high volume of requests to a single agent?

@@ -1,0 +1,2 @@
+name: bad_agent
+llm: [this: is not: yaml

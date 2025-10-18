@@ -1,0 +1,12 @@
+
+        name: Beta Bot
+        llm:
+          provider: anthropic
+          model: claude-3-haiku
+        workflow:
+          type: chain
+          human_in_loop: always
+        prompts:
+          en: "Hi"
+        tools: []
+        

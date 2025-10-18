@@ -1,0 +1,13 @@
+
+name: example_agent
+llm:
+  provider: openai
+  model: gpt-4o-mini
+workflow:
+  type: simple
+  human_in_loop: optional
+prompts:
+  en: "You are a helpful assistant."
+  es: "Eres un asistente útil."
+tools:
+  - web_search
