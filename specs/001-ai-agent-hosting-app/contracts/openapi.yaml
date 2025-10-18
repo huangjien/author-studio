@@ -1,0 +1,64 @@
+openapi: 3.0.0
+info:
+  title: AI Agent Hosting API
+  version: 1.0.0
+  description: API for interacting with dynamically configured AI agents.
+
+servers:
+  - url: /api/v1
+
+paths:
+  /agents/{agent_id}/invoke:
+    post:
+      summary: Invoke an AI Agent
+      description: Sends a request to the specified AI agent and receives a response.
+      parameters:
+        - name: agent_id
+          in: path
+          required: true
+          description: The unique identifier of the agent to invoke.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                input:
+                  type: string
+                  description: The user's input or prompt for the agent.
+                session_id:
+                  type: string
+                  description: Optional session ID to continue a conversation.
+              required:
+                - input
+      responses:
+        '200':
+          description: Successful response from the agent.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  response:
+                    type: string
+                    description: The agent's output.
+                  session_id:
+                    type: string
+                    description: The session ID for the ongoing conversation.
+        '404':
+          description: Agent not found.
+        '500':
+          description: Internal server error.
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+security:
+  - ApiKeyAuth: []
