@@ -1,5 +1,9 @@
+import logging
 import os
 import time
+import uuid
+from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from typing import Any, Dict, List, Optional
 
 import httpx
@@ -9,11 +13,81 @@ from fastapi.staticfiles import StaticFiles
 
 from src.agents.registry import AgentRegistry
 from src.api.routes.agents import router as agents_router
+from src.api.routes.autogen import router as autogen_router
+from src.api.routes.knowledge import router as knowledge_router
+from src.api.routes.mcp import router as mcp_router
 from src.config.env import settings
+from src.core.database import init_db
+from src.services.mcp_manager import mcp_client_manager
 
 from .services.logging import init_logging
 
-app = FastAPI(title="AI Agent Hosting Application", version="0.1.0")
+# Request context for logging middleware
+REQUEST_CONTEXT: ContextVar[Dict[str, Any]] = ContextVar("REQUEST_CONTEXT", default={})
+
+
+class RequestContextFilter(logging.Filter):
+    def filter(self, record):
+        ctx = REQUEST_CONTEXT.get({})
+        record.request_id = ctx.get("request_id")
+        record.path = ctx.get("path")
+        record.method = ctx.get("method")
+        record.client_ip = ctx.get("client_ip")
+        return True
+
+
+@asynccontextmanager
+async def app_lifespan(app: FastAPI):
+    # Initialize logging
+    init_logging()
+    # Attach request context filter to all handlers
+    root_logger = logging.getLogger()
+    req_filter = RequestContextFilter()
+    for h in root_logger.handlers:
+        try:
+            h.addFilter(req_filter)
+        except Exception:
+            pass
+    # Ensure local SQLite DB file exists
+    await init_db()
+    # Load MCP servers config for status endpoint
+    mcp_client_manager.load_servers_config(os.getenv("MCP_SERVERS_PATH", "mcp_servers.json"))
+    # Initialize Knowledge tables (ignore if aiosqlite is unavailable)
+    try:
+        from src.services.knowledge_service import KnowledgeService
+
+        await KnowledgeService().init_tables()
+    except Exception:
+        # optional dependency; skip on error
+        pass
+    # Populate health info cache
+    global HEALTH_INFO
+    HEALTH_INFO = _build_health_info()
+    yield
+
+
+app = FastAPI(title="AI Agent Hosting Application", version="0.1.0", lifespan=app_lifespan)
+
+
+# HTTP middleware to inject request metadata into logging records
+@app.middleware("http")
+async def inject_request_metadata(request: Request, call_next):
+    rid = request.headers.get("x-request-id") or uuid.uuid4().hex
+    ctx = {
+        "request_id": rid,
+        "path": request.url.path,
+        "method": request.method,
+        "client_ip": request.client.host if request.client else None,
+    }
+    token = REQUEST_CONTEXT.set(ctx)
+    try:
+        response = await call_next(request)
+    finally:
+        REQUEST_CONTEXT.reset(token)
+    # Echo back request id header for tracing
+    response.headers["x-request-id"] = rid
+    return response
+
 
 # Global cache populated at startup
 HEALTH_INFO: Dict[str, Any] = {}
@@ -245,15 +319,11 @@ def _live_connectivity(
 
 # Include routers at import time to ensure routes are available to TestClient and during app startup
 app.include_router(agents_router)
-
-
-@app.on_event("startup")
-async def on_startup() -> None:
-    # Initialize logging
-    init_logging()
-    # Populate health info cache
-    global HEALTH_INFO
-    HEALTH_INFO = _build_health_info()
+app.include_router(mcp_router)
+app.include_router(knowledge_router)
+# Feature-flagged AutoGen router
+if settings.autogen_enabled:
+    app.include_router(autogen_router)
 
 
 @app.get("/health")

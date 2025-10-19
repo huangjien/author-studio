@@ -237,7 +237,8 @@ def test_favicon_fallback_to_png_when_ico_missing(monkeypatch):
     original_exists = main.os.path.exists
 
     def fake_exists(path):
-        if path.endswith(os.path.join("src", "static", "favicon.ico")):
+        p = str(path)
+        if p.endswith(os.path.join("src", "static", "favicon.ico")):
             return False
         return original_exists(path)
 
@@ -250,10 +251,11 @@ def test_favicon_fallback_to_png_when_ico_missing(monkeypatch):
 
 def test_favicon_404_when_both_missing(monkeypatch):
     def fake_exists(path):
+        p = str(path)
         # Force both ico and png to appear missing
-        if path.endswith(os.path.join("src", "static", "favicon.ico")):
+        if p.endswith(os.path.join("src", "static", "favicon.ico")):
             return False
-        if path.endswith(os.path.join("src", "static", "favicon.png")):
+        if p.endswith(os.path.join("src", "static", "favicon.png")):
             return False
         return False
 

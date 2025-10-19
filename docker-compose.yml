@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/studio.Dockerfile
+    container_name: author-studio-app
+    restart: unless-stopped
+    environment:
+      - AGENT_CONFIG_DIR=/app/agent_configs
+      - PERSISTENCE_MODE=file
+      - DATA_DIR=/app/.data
+      - API_KEYS_FILE=/app/.data/api_keys.txt
+      - OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
+      - OLLAMA_EMBED_MODEL=${OLLAMA_EMBED_MODEL:-Qwen3-Embedding:latest}
+    volumes:
+      - app_data:/app/.data
+      # Uncomment to mount local agent configs for live editing
+      # - ./agent_configs:/app/agent_configs:ro
+      # Mount optional MCP servers config if present (see quickstart)
+      - ./mcp_servers.json:/app/mcp_servers.json:ro
+    ports:
+      - "8000:8000"
+    depends_on:
+      - sqlite
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health').status==200 else 1)\" "]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
+
+  sqlite:
+    build:
+      context: .
+      dockerfile: docker/sqlite.Dockerfile
+    container_name: author-studio-sqlite
+    # Expose a shared data volume for the app database
+    volumes:
+      - app_data:/app/.data
+    # Keep the container running (SQLite is file-based; this container holds extensions and tools)
+    command: ["/bin/sh", "-c", "sleep infinity"]
+
+  nginx:
+    image: nginx:alpine
+    container_name: author-studio-nginx
+    depends_on:
+      - app
+    ports:
+      - "8080:80"
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/nginx.conf:ro
+
+volumes:
+  app_data:
+    driver: local

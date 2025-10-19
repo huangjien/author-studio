@@ -1,6 +1,7 @@
 import re
 from typing import Optional
 
+from src.agents.general_agent import GeneralAgent
 from src.agents.registry import AgentRegistry
 from src.core.i18n import get_localized_prompt
 from src.services.cache import memoize
@@ -144,7 +145,13 @@ def invoke_agent(
     tool_result: Optional[dict] = None
 
     # Auto tool routing based on input intent and agent capabilities
-    selection = _detect_tool_request(agent, input_text)
+    ga = GeneralAgent(agent)
+    selection = ga.detect_tool_request(input_text)
+    # Double-check aggregated support list to avoid false positives
+    if selection:
+        tool_name, _ = selection
+        if not _agent_supports_tool(agent, tool_name):
+            selection = None
     output: str
     if selection:
         tool_name, args = selection

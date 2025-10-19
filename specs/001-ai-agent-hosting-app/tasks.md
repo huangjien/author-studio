@@ -226,3 +226,22 @@ Example commands:
 - Parallel opportunities: T003–T004 (Setup), T006–T011 (Foundational), T012–T016 (US1), T020–T021 (US2), T029–T030 (US3), T035–T036 (US4)
 - MVP Scope: US1 only
 - Format validation: All tasks use `- [ ] TXXX [P?] [US?] Description with file path`
+
+---
+
+## Optional Add-on: AutoGen Integration (Safe, Non-Blocking)
+
+The following tasks add a minimal, optional integration with the Microsoft AutoGen library. These do NOT alter existing tested flows and will be skipped if AutoGen is not installed in the environment.
+
+- [X] T100 [P] Add optional AutoGen adapter: `src/agents/autogen_adapter.py` (lazy import, single-turn chat)
+- [X] T101 [P] Demo script: `scripts/run_autogen_demo.py` (standalone; prints result or helpful error)
+- [X] T102 [P] Documentation: Add a "Using AutoGen" section to `README.md` (install, env vars, demo command)
+- [X] T103 [P] Unit tests: `tests/unit/test_autogen_adapter.py` (skip if AutoGen not installed; assert graceful behavior)
+- [ ] T104 [P] Extend adapter: support system prompts and simple group chat (Assistant + UserProxy + GroupChatManager)
+- [X] T105 [P] Config mapping: allow `agent_configs/*.yaml` to opt-in with `workflow.type: autogen` (ignored by default)
+- [X] T106 [P] Endpoint prototype: optional `/autogen/{agent_id}/invoke` (behind feature flag; separate router)
+
+Execution notes:
+- No dependency changes required for core app/tests.
+- AutoGen usage is isolated; if `autogen` is missing, tests and the app remain unaffected.
+- Start with T100–T103 (already completed here), then proceed with docs and opt-in endpoints if desired.

@@ -25,12 +25,3 @@ mcp_servers:
     tools:
       - web_search
       - fetch
-  - name: HTTP Search
-    type: http
-    url: http://localhost:8012
-    path_template: /mcp/tools/{tool_name}
-    headers: {}
-    priority: low
-    tools:
-      - web_search
-        

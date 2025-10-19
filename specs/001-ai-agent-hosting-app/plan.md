@@ -81,3 +81,10 @@ requirements.txt
 | [e.g., 4th project] | [current need] | [why 3 projects insufficient] |
 | [e.g., Repository pattern] | [specific problem] | [why direct DB access insufficient] |
 
+## Optional Plan Extension: AutoGen Integration
+
+To support team requests to create AI agents with AutoGen while keeping the base app stable:
+- Add an optional adapter module (`src/agents/autogen_adapter.py`) that lazy-loads AutoGen and supports single-turn chats.
+- Provide a standalone demo script (`scripts/run_autogen_demo.py`).
+- Define tasks under `specs/001-ai-agent-hosting-app/tasks.md` → Optional Add-on section.
+- Later, add an opt-in endpoint and config mapping (feature-flagged) without impacting existing routes or tests.

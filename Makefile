@@ -19,7 +19,7 @@ PY_FALLBACK := 3.13
 FORMAT_PATHS ?= src tests
 LINT_PATHS ?= src tests
 
-.PHONY: help setup run test docker-build docker-run docker-stop docker-clean format lint ollama-check data-clean keys-generate
+.PHONY: help setup run test docker-build docker-run docker-stop docker-clean format lint lint-no-tests ollama-check data-clean keys-generate
 
 help:
 	@echo "Available targets:"
@@ -33,6 +33,7 @@ help:
 	@echo "  docker-clean    - Remove Docker image and container"
 	@echo "  format          - Format code (black + isort) via $(VENV_DIR) and .env"
 	@echo "  lint            - Lint code (flake8) via $(VENV_DIR) and .env"
+	@echo "  lint-no-tests   - Lint only app code (exclude tests) via $(VENV_DIR) and .env"
 	@echo "  ollama-check    - Check OLLAMA status"
 	@echo "  data-clean      - Clean data folder (DATA_DIR, default .data), recreate directory"
 	@echo "  keys-generate   - Generate a new API key and append to API_KEYS_FILE (default ./keys.txt)"
@@ -138,11 +139,19 @@ test: ensure-deps
 
 format: ensure-deps
 	@$(LOAD_ENV); \
-	"$(VENV_DIR)/bin/black" $(FORMAT_PATHS) && "$(VENV_DIR)/bin/isort" $(FORMAT_PATHS)
+	"$(VENV_DIR)/bin/isort" $(FORMAT_PATHS) && "$(VENV_DIR)/bin/black" $(FORMAT_PATHS)
+	@if [ -x "$(VENV_DIR)/bin/pre-commit" ]; then \
+		$(LOAD_ENV); "$(VENV_DIR)/bin/pre-commit" run end-of-file-fixer -a || true; \
+		$(LOAD_ENV); "$(VENV_DIR)/bin/pre-commit" run trailing-whitespace -a || true; \
+	fi
 
 lint: ensure-deps
 	@$(LOAD_ENV); \
 	"$(VENV_DIR)/bin/flake8" --max-line-length 100 --ignore E203,W503 $(LINT_PATHS)
+
+lint-no-tests: ensure-deps
+	@$(LOAD_ENV); \
+	"$(VENV_DIR)/bin/flake8" --max-line-length 100 --ignore E203,W503 src
 
 ollama-check:
 	@$(LOAD_ENV); \

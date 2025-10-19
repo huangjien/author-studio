@@ -32,4 +32,4 @@
 ## Notes
 
 - Items marked incomplete require spec updates before `/speckit.clarify` or `/speckit.plan`
-- The spec contains [NEEDS CLARIFICATION] markers that must be resolved.
+- No [NEEDS CLARIFICATION] markers are present.

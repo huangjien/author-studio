@@ -41,7 +41,7 @@ Once the container is running, you can interact with your agent using `curl` or 
 curl -X POST http://localhost:8000/agents/my_assistant/invoke \
 -H "Content-Type: application/json" \
 -H "X-API-Key: your-secret-api-key" \
--d 
+-d
 '{'
   "input": "Hello, who are you?"
 '}'
