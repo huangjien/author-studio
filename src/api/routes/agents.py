@@ -1,6 +1,6 @@
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel
 
 # AutoGen adapter imports for preferred invocation path
@@ -61,10 +61,15 @@ async def list_agent_tools(agent_id: str):
 
 
 @router.post("/agents/{agent_id}/invoke", dependencies=[Depends(verify_api_key)])
-async def invoke(agent_id: str, request: Request, body: InvokeRequest):
+async def invoke(
+    agent_id: str,
+    request: Request,
+    body: InvokeRequest,
+    accept_language: Optional[str] = Header(None),
+):
     # AutoGen-only path: use AutoGen adapter and fail if unavailable
     try:
-        language = request.headers.get("Accept-Language")
+        language = accept_language
         registry.reload(dir_path=settings.agent_config_dir)
         agent = registry.get_agent(agent_id)
         if not agent:
@@ -103,16 +108,34 @@ async def invoke(agent_id: str, request: Request, body: InvokeRequest):
         # Run AutoGen using async path if supported
         try:
             if autogen_supports_async():
-                result = await run_single_turn_async(agent, body.input)
+                result = await run_single_turn_async(
+                    agent,
+                    body.input,
+                    language,
+                    session_id=session.session_id,
+                    session_history=session.history,
+                )
             else:
-                result = run_single_turn(agent, body.input)
+                result = run_single_turn(
+                    agent,
+                    body.input,
+                    language,
+                    session_id=session.session_id,
+                    session_history=session.history,
+                )
 
             if not result.get("ok"):
                 # AutoGen responded with an error; propagate as 500
                 raise RuntimeError(result.get("error") or "AutoGen error")
 
-            # Use localized language for session history metadata
-            selected_lang, _prompt_text = get_localized_prompt(agent.prompts or {}, language)
+            # Use session-selected language if adapter provided one; otherwise localized fallback
+            sess_lang = result.get("session_selected_language")
+            if isinstance(sess_lang, str) and sess_lang:
+                selected_lang = sess_lang
+                prompt_text = (agent.prompts or {}).get(sess_lang) or None
+            else:
+                selected_lang, prompt_text = get_localized_prompt(agent.prompts or {}, language)
+
             output_text = str(result.get("chat_result"))
 
             # Update session history and persist

@@ -20,6 +20,17 @@ class Settings(BaseModel):
         in {"1", "true", "yes", "on"}
     )
 
+    # New configuration keys for AutoGen adapter behavior
+    agents_autogen_context_max_messages: int = Field(
+        default_factory=lambda: int(os.getenv("AGENTS_AUTOGEN_CONTEXT_MAX_MESSAGES", "8") or "8")
+    )
+    agents_autogen_context_max_chars: int = Field(
+        default_factory=lambda: int(os.getenv("AGENTS_AUTOGEN_CONTEXT_MAX_CHARS", "500") or "500")
+    )
+    agents_autogen_session_ttl_days: int = Field(
+        default_factory=lambda: int(os.getenv("AGENTS_AUTOGEN_SESSION_TTL_DAYS", "30") or "30")
+    )
+
     # Pydantic v2 configuration using ConfigDict
     model_config = ConfigDict(arbitrary_types_allowed=True)
 

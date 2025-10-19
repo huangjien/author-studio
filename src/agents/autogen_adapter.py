@@ -35,8 +35,11 @@ from __future__ import annotations
 import asyncio
 import os
 import re
-from typing import Any, Dict, Optional
+from datetime import datetime, timedelta, timezone
+from threading import Lock
+from typing import Any, Dict, List, Optional, Tuple
 
+from src.core.i18n import get_localized_prompt
 from src.core.models.agent import Agent
 
 
@@ -104,6 +107,34 @@ def _extract_system_message(agent: Agent) -> Optional[str]:
     return None
 
 
+def _extract_system_message_for_lang(agent: Agent, accept_language: Optional[str]) -> Optional[str]:
+    """Localized system message selection.
+
+    New behavior requested:
+    - If workflow.system_message exists, it overrides everything.
+    - Otherwise, choose using get_localized_prompt(prompts, Accept-Language),
+      defaulting to 'en' and falling back sensibly.
+    - If accept_language is None, preserve legacy priority via _extract_system_message.
+    """
+    # Explicit override takes precedence
+    wf_msg = (agent.workflow or {}).get("system_message")
+    if isinstance(wf_msg, str) and wf_msg.strip():
+        return wf_msg.strip()
+
+    # Preserve legacy behavior when no Accept-Language context is provided
+    if accept_language is None:
+        return _extract_system_message(agent)
+
+    # Localize via i18n helper (default='en', fallback to first available)
+    prompts = agent.prompts or {}
+    _selected_key, prompt_text = get_localized_prompt(prompts, accept_language)
+    if isinstance(prompt_text, str) and prompt_text.strip():
+        return prompt_text.strip()
+
+    # If nothing usable, return None
+    return None
+
+
 def _to_valid_agent_name(agent_id: str) -> str:
     """Return a valid Python identifier for the AssistantAgent name.
 
@@ -112,6 +143,201 @@ def _to_valid_agent_name(agent_id: str) -> str:
     """
     sanitized = re.sub(r"[^0-9a-zA-Z_]", "_", str(agent_id))
     return f"assistant_{sanitized}"
+
+
+def _mock_mode_enabled() -> bool:
+    """Check if a dedicated mock mode is enabled via environment flag."""
+    flag = os.getenv("AGENTS_AUTOGEN_MOCK", "").strip().lower()
+    return flag in ("1", "true", "yes", "on")
+
+
+# ------------------------------
+# In-memory session agent registry
+# ------------------------------
+
+# Context window configuration (env-configurable)
+_CONTEXT_MAX_MESSAGES: int = int(os.getenv("AGENTS_AUTOGEN_CONTEXT_MAX_MESSAGES", "8") or "8")
+_CONTEXT_MAX_CHARS: int = int(os.getenv("AGENTS_AUTOGEN_CONTEXT_MAX_CHARS", "500") or "500")
+
+
+class _SessionEntry:
+    def __init__(
+        self,
+        assistant: Any,
+        agent_id: str,
+        system_message: Optional[str],
+        selected_language: Optional[str],
+    ) -> None:
+        now = datetime.now(timezone.utc)
+        self.assistant = assistant
+        self.agent_id = agent_id
+        self.system_message = system_message
+        self.selected_language = selected_language
+        self.created_at = now
+        self.last_used = now
+
+
+_SESSION_REGISTRY: Dict[str, _SessionEntry] = {}
+_SESSION_LOCK: Lock = Lock()
+
+
+# TTL configuration: prefer DAYS if provided, else SECONDS, else default to 30 days
+def _resolve_ttl_seconds() -> int:
+    days_val = os.getenv("AGENTS_AUTOGEN_SESSION_TTL_DAYS")
+    if days_val and days_val.strip():
+        try:
+            d = int(days_val)
+            return max(1, d) * 86400
+        except Exception:
+            pass
+    seconds_val = os.getenv("AGENTS_AUTOGEN_SESSION_TTL_SECONDS")
+    if seconds_val and seconds_val.strip():
+        try:
+            s = int(seconds_val)
+            return max(60, s)
+        except Exception:
+            pass
+    # Default: ~30 days
+    return 30 * 24 * 3600
+
+
+_SESSION_TTL_SECONDS: int = _resolve_ttl_seconds()
+
+
+def _registry_prune() -> None:
+    """Prune expired sessions by TTL."""
+    try:
+        now = datetime.now(timezone.utc)
+        expiry = timedelta(seconds=max(60, _SESSION_TTL_SECONDS))
+        to_delete: List[str] = []
+        for sid, entry in _SESSION_REGISTRY.items():
+            if now - entry.last_used > expiry:
+                to_delete.append(sid)
+        for sid in to_delete:
+            _SESSION_REGISTRY.pop(sid, None)
+    except Exception:
+        # best-effort cleanup; never raise
+        pass
+
+
+def _ensure_session_assistant(
+    agent: Agent,
+    accept_language: Optional[str],
+    session_id: Optional[str],
+    agentchat: Optional[Dict[str, Any]],
+) -> Tuple[Any, Optional[str], Optional[str], bool]:
+    """
+    Ensure an AssistantAgent exists for the given session_id.
+
+    Returns a tuple: (assistant, system_message, selected_language, created)
+    - If session_id is None, creates a fresh assistant (no registry persistence)
+    - If a session exists, reuses it and ignores new Accept-Language
+    """
+    # Try reuse if session_id provided
+    if session_id:
+        with _SESSION_LOCK:
+            entry = _SESSION_REGISTRY.get(session_id)
+            if entry:
+                entry.last_used = datetime.now(timezone.utc)
+                return entry.assistant, entry.system_message, entry.selected_language, False
+
+    # Create new assistant
+    selected_language: Optional[str] = None
+    system_message = _extract_system_message_for_lang(agent, accept_language)
+    if accept_language is not None:
+        # get_localized_prompt returns (selected, text)
+        selected_language, _ = get_localized_prompt(agent.prompts or {}, accept_language)
+
+    if _mock_mode_enabled():
+        assistant = _MockAssistant(agent.agent_id)
+    else:
+        assert agentchat is not None
+        llm_config = _to_llm_config(agent.llm_config)
+        model = str(llm_config.get("model", "gpt-4o-mini"))
+
+        Client = agentchat["OpenAIChatCompletionClient"]
+        Assistant = agentchat["AssistantAgent"]
+        client = Client(model=model)
+
+        assistant_kwargs: Dict[str, Any] = {
+            "name": _to_valid_agent_name(agent.agent_id),
+            "model_client": client,
+        }
+        if system_message:
+            assistant_kwargs["system_message"] = system_message
+
+        assistant = Assistant(**assistant_kwargs)
+
+    # Persist into registry if session_id present
+    created = True
+    if session_id:
+        with _SESSION_LOCK:
+            _SESSION_REGISTRY[session_id] = _SessionEntry(
+                assistant=assistant,
+                agent_id=agent.agent_id,
+                system_message=system_message,
+                selected_language=selected_language,
+            )
+    # Opportunistic prune
+    _registry_prune()
+
+    return assistant, system_message, selected_language, created
+
+
+def _format_history_context(
+    history: Optional[List[Dict[str, Any]]],
+) -> Optional[str]:
+    """Format prior session history into a compact textual context block.
+
+    This is a pragmatic approach to multi-turn memory when the underlying assistant
+    does not maintain conversation state between calls. It ensures continuity by
+    prepending a recent transcript to the current task.
+    """
+    if not history:
+        return None
+    try:
+        # Take the last N messages
+        recent = history[-_CONTEXT_MAX_MESSAGES:]
+        lines: List[str] = []
+        lines.append(f"Conversation context (last {len(recent)} messages):")
+        for msg in recent:
+            role = str(msg.get("role") or "unknown")
+            content = str(msg.get("content") or "")
+            truncated = content[:_CONTEXT_MAX_CHARS]
+            if len(content) > _CONTEXT_MAX_CHARS:
+                truncated = truncated + "…"
+            # Normalize role labeling
+            if role == "agent":
+                role = "assistant"
+            elif role not in ("user", "assistant"):
+                role = "other"
+            lines.append(f"- {role}: {truncated}")
+        return "\n".join(lines)
+    except Exception:
+        return None
+
+
+def _compose_task(user_input: str, history: Optional[List[Dict[str, Any]]]) -> str:
+    context = _format_history_context(history)
+    if context:
+        return f"{context}\n\nCurrent request:\n{user_input}"
+    return user_input
+
+
+# Minimal mock Assistant to mirror interface for tests when AGENTS_AUTOGEN_MOCK=1
+class _MockAssistant:
+    def __init__(self, agent_id: str) -> None:
+        self.name = _to_valid_agent_name(agent_id)
+
+    async def run(self, task: str) -> str:
+        # Deterministic echo for testing parity
+        await asyncio.sleep(0)
+        return f"Echo: {task}"
+
+
+# -------------
+# Public API
+# -------------
 
 
 def _mock_result(agent: Agent, user_input: str) -> Dict[str, Any]:
@@ -127,20 +353,23 @@ def _mock_result(agent: Agent, user_input: str) -> Dict[str, Any]:
     }
 
 
-def _mock_mode_enabled() -> bool:
-    """Check if a dedicated mock mode is enabled via environment flag."""
-    flag = os.getenv("AGENTS_AUTOGEN_MOCK", "").strip().lower()
-    return flag in ("1", "true", "yes", "on")
-
-
-def run_single_turn(agent: Agent, user_input: str) -> Dict[str, Any]:
+def run_single_turn(
+    agent: Agent,
+    user_input: str,
+    accept_language: Optional[str] = None,
+    session_id: Optional[str] = None,
+    session_history: Optional[List[Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
     """Run a single-turn AutoGen conversation using AgentChat 0.7.5.
 
     Returns a structured dict summarizing the result, or an error if AgentChat
     is not available.
     """
+    # Compose task with context regardless of mock mode
+    composed_task = _compose_task(user_input, session_history)
+
     if _mock_mode_enabled():
-        return _mock_result(agent, user_input)
+        return _mock_result(agent, composed_task)
 
     agentchat = _import_agentchat()
     if agentchat is None:
@@ -154,33 +383,24 @@ def run_single_turn(agent: Agent, user_input: str) -> Dict[str, Any]:
         }
 
     try:
-        llm_config = _to_llm_config(agent.llm_config)
-        model = str(llm_config.get("model", "gpt-4o-mini"))
-
-        # Construct a simple AssistantAgent backed by OpenAI chat completion client
-        Client = agentchat["OpenAIChatCompletionClient"]
-        Assistant = agentchat["AssistantAgent"]
-        client = Client(model=model)
-
-        assistant_kwargs: Dict[str, Any] = {
-            "name": _to_valid_agent_name(agent.agent_id),
-            "model_client": client,
-        }
-        system_message = _extract_system_message(agent)
-        if system_message:
-            assistant_kwargs["system_message"] = system_message
-
-        assistant = Assistant(**assistant_kwargs)
+        assistant, _system_message, selected_language, _created = _ensure_session_assistant(
+            agent=agent,
+            accept_language=accept_language,
+            session_id=session_id,
+            agentchat=agentchat,
+        )
         # AgentChat `run` is async; use asyncio.run in synchronous contexts
-        result_text = asyncio.run(assistant.run(task=user_input))
+        result_text = asyncio.run(assistant.run(task=composed_task))
 
+        llm_config = _to_llm_config(agent.llm_config)
         return {
             "ok": True,
             "agent_id": agent.agent_id,
-            "input": user_input,
+            "input": composed_task,
             "llm_config": llm_config,
             "chat_result": str(result_text),
             "flavor": "agentchat-0.7.5",
+            "session_selected_language": selected_language,
         }
     except Exception as e:
         # Preserve a helpful hint and structure
@@ -199,17 +419,26 @@ def supports_agentchat_async() -> bool:
 
     This indicates the adapter can run without `asyncio.run`, suitable for async endpoints.
     """
-    return _import_agentchat() is not None
+    return _import_agentchat() is not None or _mock_mode_enabled()
 
 
-async def run_single_turn_async(agent: Agent, user_input: str) -> Dict[str, Any]:
+async def run_single_turn_async(
+    agent: Agent,
+    user_input: str,
+    accept_language: Optional[str] = None,
+    session_id: Optional[str] = None,
+    session_history: Optional[List[Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
     """Async variant of single-turn conversation using AgentChat 0.7.5.
 
     Returns the same structured dict as `run_single_turn`. If AgentChat is not available,
     returns an error dict indicating the missing dependency.
     """
+    # Compose task with context regardless of mock mode
+    composed_task = _compose_task(user_input, session_history)
+
     if _mock_mode_enabled():
-        return _mock_result(agent, user_input)
+        return _mock_result(agent, composed_task)
 
     agentchat = _import_agentchat()
     if agentchat is None:
@@ -223,33 +452,26 @@ async def run_single_turn_async(agent: Agent, user_input: str) -> Dict[str, Any]
         }
 
     try:
+        assistant, _system_message, selected_language, _created = _ensure_session_assistant(
+            agent=agent,
+            accept_language=accept_language,
+            session_id=session_id,
+            agentchat=agentchat,
+        )
+        result_text = await assistant.run(task=composed_task)
+
         llm_config = _to_llm_config(agent.llm_config)
-        model = str(llm_config.get("model", "gpt-4o-mini"))
-
-        Client = agentchat["OpenAIChatCompletionClient"]
-        Assistant = agentchat["AssistantAgent"]
-        client = Client(model=model)
-
-        assistant_kwargs: Dict[str, Any] = {
-            "name": _to_valid_agent_name(agent.agent_id),
-            "model_client": client,
-        }
-        system_message = _extract_system_message(agent)
-        if system_message:
-            assistant_kwargs["system_message"] = system_message
-
-        assistant = Assistant(**assistant_kwargs)
-        result_text = await assistant.run(task=user_input)
-
         return {
             "ok": True,
             "agent_id": agent.agent_id,
-            "input": user_input,
+            "input": composed_task,
             "llm_config": llm_config,
             "chat_result": str(result_text),
             "flavor": "agentchat-0.7.5",
+            "session_selected_language": selected_language,
         }
     except Exception as e:
+        # Preserve a helpful hint and structure
         return {
             "ok": False,
             "error": f"autogen agentchat interaction failed: {e}",

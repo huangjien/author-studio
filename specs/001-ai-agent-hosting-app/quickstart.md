@@ -80,3 +80,14 @@ The response includes the selected language key:
   "selected_language": "es"
 }
 ```
+
+## 5. AutoGen Adapter Configuration
+
+You can tune session context and lifecycle via environment variables:
+- `AGENTS_AUTOGEN_CONTEXT_MAX_MESSAGES` (default `8`): number of recent session messages to include in the context block prepended to the current request.
+- `AGENTS_AUTOGEN_CONTEXT_MAX_CHARS` (default `500`): maximum characters per message included in the context block.
+- `AGENTS_AUTOGEN_SESSION_TTL_DAYS` (default `30`): in-memory session agent registry TTL. Expired sessions are pruned automatically. Alternatively, set `AGENTS_AUTOGEN_SESSION_TTL_SECONDS` for fine-grained control; if set, it overrides the day-based setting.
+
+Language consistency within a session:
+- The language selected on the first turn of a session (or an explicit `workflow.system_message`) is reused on subsequent turns.
+- Mid-session `Accept-Language` values will not override the session’s language.

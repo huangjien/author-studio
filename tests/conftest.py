@@ -21,10 +21,14 @@ def stub_autogen_in_agents_route(monkeypatch):
         monkeypatch.setattr(routes, "autogen_available", lambda: True, raising=True)
         monkeypatch.setattr(routes, "autogen_supports_async", lambda: True, raising=True)
 
-        async def fake_run_single_turn_async(agent, user_input):
+        async def fake_run_single_turn_async(
+            agent, user_input, accept_language=None, session_id=None, session_history=None
+        ):
             return {"ok": True, "chat_result": f"Echo: {user_input} (agent={agent.agent_id})"}
 
-        def fake_run_single_turn(agent, user_input):
+        def fake_run_single_turn(
+            agent, user_input, accept_language=None, session_id=None, session_history=None
+        ):
             return {"ok": True, "chat_result": f"Echo: {user_input} (agent={agent.agent_id})"}
 
         monkeypatch.setattr(

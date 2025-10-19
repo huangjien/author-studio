@@ -60,7 +60,9 @@ def test_persisted_session_history_includes_role_entries_and_echo(tmp_path, monk
 
     monkeypatch.setattr(routes, "session_service", fresh_session, raising=True)
 
-    async def echo_run(agent, user_input):
+    async def echo_run(
+        agent, user_input, accept_language=None, session_id=None, session_history=None
+    ):
         return {
             "ok": True,
             "agent_id": getattr(agent, "agent_id", "alpha-bot"),

@@ -220,11 +220,12 @@ pip install -U "autogen-agentchat==0.7.5" "autogen-ext[openai,mcp]==0.7.5"
 pip install .[autogen-stable]
 ```
 
-Environment flags:
-- `AGENTS_USE_AUTOGEN` (default `true`): enables AutoGen-only mode for `/agents/{agent_id}/invoke`.
-  - If set to `false`, the endpoint responds with `501 Not Implemented`.
-- `AGENTS_AUTOGEN_MOCK` (default `0`): when set to `1`, the AutoGen adapter returns a deterministic echo result.
-  - Useful for Docker tests and offline local development without provider credentials.
+Configuration
+- See `docs/configuration.md` for a complete list of environment variables and an example `.env` snippet.
+- Key flags covered there include:
+  - `AGENTS_AUTOGEN_CONTEXT_MAX_MESSAGES` (default `8`)
+  - `AGENTS_AUTOGEN_CONTEXT_MAX_CHARS` (default `500`)
+  - `AGENTS_AUTOGEN_SESSION_TTL_DAYS` (default `30`), with optional `AGENTS_AUTOGEN_SESSION_TTL_SECONDS` override
 
 Example request:
 ```bash
@@ -243,6 +244,10 @@ Response shape:
   "selected_language": "en"
 }
 ```
+
+Language consistency:
+- For a given session_id, the language selected on the first turn (or an explicit `workflow.system_message`) is reused on subsequent turns.
+- Mid-session `Accept-Language` values will not override the session’s language. The adapter returns `session_selected_language` and the route uses it to update session history and response metadata.
 
 Provider keys:
 - Set `OPENAI_API_KEY` (or other providers as supported by your agents) in the environment when not using mock mode.
