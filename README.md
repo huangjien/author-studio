@@ -9,7 +9,7 @@ A minimal, test-driven FastAPI application for hosting YAML-defined "agents" wit
 This repository is intentionally simple so you can layer in real LLM providers later.
 
 ## Requirements
-- Python 3.14
+- Python 3.13+ (developed against 3.13; Makefile auto-falls back from 3.14 to 3.13 for dependency compatibility)
 - Dependencies: see `requirements.txt` (FastAPI, Uvicorn, PyYAML, Pydantic v2, etc.)
 - Optional: `pytest-cov` for coverage, `python-dotenv` if you want to auto-load `.env`
 
@@ -61,6 +61,7 @@ tests/                 # Unit, integration, and contract tests
    MISTRAL_API_KEY=
    COHERE_API_KEY=
    TOGETHER_API_KEY=
+   DEEPSEEK_API_KEY=
    ```
    Then either export them in your shell:
    ```bash
@@ -68,18 +69,30 @@ tests/                 # Unit, integration, and contract tests
    ```
    Or install `python-dotenv` and add `load_dotenv()` on startup.
 
-2. Install dependencies:
+2. Setup environment (Python + venv + deps):
    ```bash
-   pip install -r requirements.txt
+   make setup
    ```
 
-3. Start the server:
+3. Run the server:
    ```bash
-   uvicorn src.main:app --reload
+   make run PORT=8000
    ```
 
 4. Test the `/health` endpoint:
    - GET http://localhost:8000/health -> `{ "status": "ok" }`
+
+## Developer commands
+```bash
+make test
+make format
+make lint
+make docker-build
+make docker-run PORT=8000
+make docker-stop
+make docker-clean
+make ollama-check
+```
 
 ## Security
 - API key is enforced on the agents router via `src/api/security.py`.
@@ -109,7 +122,7 @@ export API_KEYS_FILE=$(pwd)/keys.txt
 export API_KEYS_TTL=10  # optional (default 10)
 
 # Start the server (or container)
-uvicorn src.main:app --reload
+make run PORT=8000
 
 # Later, rotate/add a key without restart
 printf "gamma\n" > ./keys.txt
@@ -258,17 +271,14 @@ To use it:
 ## Docker
 - Build image:
   ```bash
-  docker build -t ai-agent-app .
+  make docker-build
   ```
 - Run container:
   ```bash
-  docker run -p 8000:8000 \
-    -v $(pwd)/agent_configs:/app/agent_configs \
-    -e API_KEY=your-key \
-    -e AGENT_CONFIG_DIR=/app/agent_configs \
-    ai-agent-app
+  make docker-run PORT=8000
   ```
-- You can also pass provider keys via `-e OPENAI_API_KEY=...` etc.
+- The `docker-run` target mounts `./agent_configs` into `/app/agent_configs`, loads `.env` automatically, and sets `AGENT_CONFIG_DIR=/app/agent_configs`. On Linux it uses host networking; on macOS/Windows it maps ports and uses `host.docker.internal` for Ollama.
+- You can also pass provider keys via environment variables, e.g. `OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, etc. In local dev, set them in `.env`.
 
 ## Testing & Coverage
 - Run all tests:
@@ -380,7 +390,10 @@ A Makefile has been added with common tasks. Examples:
   ```
 - Run server (current shell env):
   ```bash
-  make run
+  make setup
+  ```
+  ```bash
+  make run PORT=8000
   ```
 - Run server loading `.env` if present:
   ```bash

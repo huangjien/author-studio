@@ -25,13 +25,13 @@ workflow:
 From the root of the project, build and run the Docker container:
 
 ```bash
-# Build the Docker image
-docker build -t ai-agent-app .
+# Build the Docker image (uses docker/studio.Dockerfile)
+make docker-build
 
-# Run the container, mounting the agent configurations directory
-docker run -p 8000:8000 -v ./agent_configs:/app/agent_configs -e API_KEY="your-secret-api-key" ai-agent-app
+# Run the container (mounts ./agent_configs and loads .env automatically)
+make docker-run PORT=8000
 ```
-*Note: The Ollama `base_url` uses `host.docker.internal` to allow the container to access a service running on the host machine.*
+*Note: The Ollama `base_url` uses `host.docker.internal` on macOS/Windows to allow the container to access a service running on the host machine. On Linux, host networking is used.*
 
 ## 3. Interact with the Agent
 

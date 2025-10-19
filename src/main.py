@@ -4,7 +4,8 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from src.agents.registry import AgentRegistry
 from src.api.routes.agents import router as agents_router
@@ -63,6 +64,17 @@ def _detect_llm_providers(env: Dict[str, str]) -> Dict[str, Dict[str, Any]]:
         "configured": present("TOGETHER_API_KEY"),
         "available": present("TOGETHER_API_KEY"),
         "details": {"env": "TOGETHER_API_KEY"},
+    }
+
+    # DeepSeek provider (OpenAI-compatible API)
+    providers["deepseek"] = {
+        "configured": present("DEEPSEEK_API_KEY"),
+        "available": present("DEEPSEEK_API_KEY"),
+        "details": {
+            "env": "DEEPSEEK_API_KEY",
+            "base_url": "https://api.deepseek.com",
+            "chat_completions": "https://api.deepseek.com/chat/completions",
+        },
     }
 
     # Local provider (Ollama). We consider it "configured" if OLLAMA_HOST is set.
@@ -219,6 +231,14 @@ def _live_connectivity(
             "endpoint": url
         }
 
+    # DeepSeek (OpenAI-compatible)
+    if want("deepseek") and providers.get("deepseek", {}).get("configured"):
+        url = "https://api.deepseek.com/v1/models"
+        headers = {"Authorization": f"Bearer {env.get('DEEPSEEK_API_KEY', '')}"}
+        results["deepseek"] = _probe_http(url, headers=headers, timeout_ms=timeout_ms) | {
+            "endpoint": url
+        }
+
     summary_ok = all(v.get("ok") for v in results.values()) if results else False
     return {"results": results, "live_ok": summary_ok}
 
@@ -266,3 +286,19 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
             "message": str(exc),
         },
     )
+
+
+# Mount static files directory to serve icons and other assets
+app.mount("/static", StaticFiles(directory="src/static"), name="static")
+
+
+# Serve favicon.ico (and fallback to favicon.png if .ico is missing)
+@app.get("/favicon.ico")
+async def favicon():
+    path = os.path.join("src", "static", "favicon.ico")
+    if os.path.exists(path):
+        return FileResponse(path, media_type="image/x-icon")
+    png_path = os.path.join("src", "static", "favicon.png")
+    if os.path.exists(png_path):
+        return FileResponse(png_path, media_type="image/png")
+    return JSONResponse(status_code=404, content={"error": "favicon not found"})

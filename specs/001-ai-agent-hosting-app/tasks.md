@@ -190,8 +190,8 @@ Example commands:
 - `pytest -q tests/contract/test_invoke_endpoint.py tests/integration/test_agent_invoke_flow.py`
 
 ### Docker (US3)
-- `docker build -t ai-agent-app .`
-- `docker run -p 8000:8000 -v ./agent_configs:/app/agent_configs -e OPENAI_API_KEY=your-key ai-agent-app`
+- `make docker-build`
+- `make docker-run PORT=8000`
 
 ---
 

@@ -15,226 +15,30 @@ PYTHON ?= python3
 VENV_DIR ?= .venv
 UV ?= uv
 PY_VERSION := $(shell cat .python-version 2>/dev/null)
+PY_FALLBACK := 3.13
+FORMAT_PATHS ?= src tests
+LINT_PATHS ?= src tests
 
-.PHONY: help python-install install install-venv venv run run-env run-venv test test-venv test-verbose cov cov-html docker-build docker-run docker-run-linux docker-run-linux-hostnet docker-stop docker-clean format format-venv lint lint-venv ollama-pull ollama-pull-qwen ollama-check data-clean keys-generate
+.PHONY: help setup run test docker-build docker-run docker-stop docker-clean format lint ollama-check data-clean keys-generate
 
 help:
 	@echo "Available targets:"
 	@echo "  help            - Show this help message"
-	@echo "  python-install  - Install the Python version from .python-version using uv"
-	@echo "  install         - Create venv and install dependencies using uv (respects .python-version if present)"
-	@echo "  install-venv    - Create .venv (if missing) and install dependencies inside it using uv (respects .python-version)"
-	@echo "  venv            - Create a virtual environment at $(VENV_DIR) using uv (respects .python-version)"
-	@echo "  run             - Run the FastAPI app (uvicorn)"
-	@echo "  run-env         - Run app with environment file (.env)"
-	@echo "  run-venv        - Run the app using $(VENV_DIR)/bin/uvicorn (no activation needed)"
-	@echo "  test            - Run tests (pytest)"
-	@echo "  test-venv       - Run tests using $(VENV_DIR)/bin/pytest"
-	@echo "  test-verbose    - Run tests with verbose output"
-	@echo "  cov             - Run tests with coverage report in terminal"
-	@echo "  cov-html        - Generate HTML coverage report in ./htmlcov"
+	@echo "  setup           - Detect and install Python (via uv), create .venv, and install dependencies"
+	@echo "  run             - Run the FastAPI app (auto-creates .venv, loads .env)"
+	@echo "  test            - Run tests (auto-creates .venv, loads .env)"
 	@echo "  docker-build    - Build the Docker image"
-	@echo "  docker-run      - Run the Docker container (exposing app)"
-	@echo "  docker-run-linux- Run Docker container with Linux-specific options"
-	@echo "  docker-run-linux-hostnet - Run Docker container with Linux host networking"
+	@echo "  docker-run      - Run the Docker container (auto-detect OS; uses host network on Linux)"
 	@echo "  docker-stop     - Stop and remove the Docker container"
 	@echo "  docker-clean    - Remove Docker image and container"
-	@echo "  format          - Format code using black and isort"
-	@echo "  format-venv     - Format code using $(VENV_DIR)/bin/black and $(VENV_DIR)/bin/isort"
-	@echo "  lint            - Lint code using flake8 (auto-detect venv if present)"
-	@echo "  lint-venv       - Lint code using $(VENV_DIR)/bin/flake8"
-	@echo "  ollama-pull     - Pull default OLLAMA models"
-	@echo "  ollama-pull-qwen- Pull Qwen model specified by QWEN_VARIANT"
+	@echo "  format          - Format code (black + isort) via $(VENV_DIR) and .env"
+	@echo "  lint            - Lint code (flake8) via $(VENV_DIR) and .env"
 	@echo "  ollama-check    - Check OLLAMA status"
 	@echo "  data-clean      - Clean data folder (DATA_DIR, default .data), recreate directory"
 	@echo "  keys-generate   - Generate a new API key and append to API_KEYS_FILE (default ./keys.txt)"
 
-python-install:
-	@if ! command -v $(UV) >/dev/null 2>&1; then \
-		echo "Error: 'uv' not found. Install it via 'brew install uv' or see https://docs.astral.sh/uv/"; \
-		exit 1; \
-	fi
-	@if [ ! -f .python-version ]; then \
-		echo "No .python-version file found. Create one with the desired version (e.g., '3.12')."; \
-		exit 1; \
-	fi
-	$(UV) python install "$$(cat .python-version)"
-
-install:
-	@if ! command -v $(UV) >/dev/null 2>&1; then \
-		echo "Error: 'uv' not found. Install it via 'brew install uv' or see https://docs.astral.sh/uv/"; \
-		exit 1; \
-	fi
-	@if [ ! -d "$(VENV_DIR)" ]; then \
-		if [ -f .python-version ]; then \
-			$(UV) venv --python "$$(cat .python-version)" $(VENV_DIR); \
-		else \
-			$(UV) venv $(VENV_DIR); \
-		fi; \
-	fi
-	$(UV) pip sync --python $(VENV_DIR)/bin/python requirements.txt
-
-venv:
-	@if ! command -v $(UV) >/dev/null 2>&1; then \
-		echo "Error: 'uv' not found. Install it via 'brew install uv' or see https://docs.astral.sh/uv/"; \
-		exit 1; \
-	fi
-	@if [ -f .python-version ]; then \
-		$(UV) venv --python "$$(cat .python-version)" $(VENV_DIR); \
-	else \
-		$(UV) venv $(VENV_DIR); \
-	fi
-	@echo "Virtualenv created at $(VENV_DIR)"
-	@echo "Activate with: source $(VENV_DIR)/bin/activate"
-
-install-venv:
-	@if ! command -v $(UV) >/dev/null 2>&1; then \
-		echo "Error: 'uv' not found. Install it via 'brew install uv' or see https://docs.astral.sh/uv/"; \
-		exit 1; \
-	fi
-	@if [ ! -d "$(VENV_DIR)" ]; then \
-		if [ -f .python-version ]; then \
-			$(UV) venv --python "$$(cat .python-version)" $(VENV_DIR); \
-		else \
-			$(UV) venv $(VENV_DIR); \
-		fi; \
-		echo "Virtualenv created at $(VENV_DIR)"; \
-	fi
-	$(UV) pip sync --python $(VENV_DIR)/bin/python requirements.txt
-
-run:
-	uvicorn src.main:app --host 0.0.0.0 --port $(PORT)
-
-run-env:
-	set -a; [ -f .env ] && . ./.env; set +a; \
-	uvicorn src.main:app --host 0.0.0.0 --port $(PORT)
-
-run-venv:
-	@if [ ! -d "$(VENV_DIR)" ]; then \
-		$(PYTHON) -m venv $(VENV_DIR); \
-	fi
-	$(VENV_DIR)/bin/uvicorn src.main:app --host 0.0.0.0 --port $(PORT)
-
-# Tests
-
-test:
-	pytest -q
-
-test-verbose:
-	pytest -rs
-
-# Coverage
-cov:
-	pytest --cov=src --cov-report=term-missing
-
-cov-html:
-	pytest --cov=src --cov-report=html && echo "Coverage report -> htmlcov/index.html"
-
-# Docker
-docker-build:
-	docker build -f docker/studio.Dockerfile -t $(APP_NAME) .
-
-docker-run:
-	- docker rm -f $(APP_NAME)-dev >/dev/null 2>&1 || true
-	docker run -d --name $(APP_NAME)-dev -p $(PORT):8000 \
-	  -v $(shell pwd)/agent_configs:/app/agent_configs \
-	  -e API_KEY=$${API_KEY:-changeme} \
-	  -e AGENT_CONFIG_DIR=/app/agent_configs \
-	  -e OLLAMA_HOST=$${OLLAMA_HOST:-http://host.docker.internal:$(OLLAMA_PORT)} \
-	  $(APP_NAME)
-
-docker-run-linux:
-	- docker rm -f $(APP_NAME)-dev >/dev/null 2>&1 || true
-	# Requires Docker 20.10+ for --add-host=...:host-gateway
-	docker run -d --name $(APP_NAME)-dev -p $(PORT):8000 \
-	  -v $(shell pwd)/agent_configs:/app/agent_configs \
-	  --add-host=host.docker.internal:host-gateway \
-	  -e API_KEY=$${API_KEY:-changeme} \
-	  -e AGENT_CONFIG_DIR=/app/agent_configs \
-	  -e OLLAMA_HOST=$${OLLAMA_HOST:-http://host.docker.internal:$(OLLAMA_PORT)} \
-	  $(APP_NAME)
-
-docker-run-linux-hostnet:
-	- docker rm -f $(APP_NAME)-dev >/dev/null 2>&1 || true
-	docker run -d --name $(APP_NAME)-dev --network host \
-	  -v $(shell pwd)/agent_configs:/app/agent_configs \
-	  -e API_KEY=$${API_KEY:-changeme} \
-	  -e AGENT_CONFIG_DIR=/app/agent_configs \
-	  -e OLLAMA_HOST=$${OLLAMA_HOST:-http://localhost:$(OLLAMA_PORT)} \
-	  $(APP_NAME)
-
-docker-stop:
-	- docker rm -f $(APP_NAME)-dev || true
-
-docker-clean:
-	- docker rmi $(APP_NAME) || true
-
-# Ollama model management
-ollama-pull:
-	@for model in $(OLLAMA_MODELS); do \
-		echo "Pulling $$model via Ollama..."; \
-		$(OLLAMA) pull $$model || exit $$?; \
-	done
-
-ollama-pull-qwen:
-	@echo "Pulling Qwen variant: $(QWEN_VARIANT) via Ollama..."
-	$(OLLAMA) pull $(QWEN_VARIANT)
-
-ollama-check:
-	@echo "Checking Ollama at $(OLLAMA_HOST)/api/tags"
-	@if command -v jq >/dev/null 2>&1; then \
-		curl -s -f "$(OLLAMA_HOST)/api/tags" | jq; \
-	else \
-		curl -s -f "$(OLLAMA_HOST)/api/tags"; \
-	fi
-
-# Formatting & linting
-LINT_PATHS ?= src tests
-FORMAT_PATHS ?= src tests
-format:
-	@if [ -x "$(VENV_DIR)/bin/black" ] && [ -x "$(VENV_DIR)/bin/isort" ]; then \
-		"$(VENV_DIR)/bin/black" $(FORMAT_PATHS) && "$(VENV_DIR)/bin/isort" $(FORMAT_PATHS); \
-	elif command -v black >/dev/null 2>&1 && command -v isort >/dev/null 2>&1; then \
-		black $(FORMAT_PATHS) && isort $(FORMAT_PATHS); \
-	else \
-		echo "black/isort not found. Run 'make format-venv' to install in .venv"; \
-		exit 127; \
-	fi
-
-format-venv:
-	@if [ ! -d "$(VENV_DIR)" ]; then \
-		if command -v $(UV) >/dev/null 2>&1; then \
-			$(UV) venv $(VENV_DIR); \
-		else \
-			$(PYTHON) -m venv $(VENV_DIR); \
-		fi; \
-	fi
-	@if command -v $(UV) >/dev/null 2>&1; then \
-		$(UV) pip install --python $(VENV_DIR)/bin/python -q -U black isort; \
-	else \
-		"$(VENV_DIR)/bin/python" -m pip install --upgrade pip; \
-		"$(VENV_DIR)/bin/python" -m pip install -U black isort; \
-	fi
-	"$(VENV_DIR)/bin/black" $(FORMAT_PATHS) && "$(VENV_DIR)/bin/isort" $(FORMAT_PATHS)
-
-lint:
-	@if [ -x "$(VENV_DIR)/bin/flake8" ]; then \
-		"$(VENV_DIR)/bin/flake8" --max-line-length 100 --ignore E203,W503 $(LINT_PATHS); \
-	elif command -v flake8 >/dev/null 2>&1; then \
-		flake8 --max-line-length 100 --ignore E203,W503 $(LINT_PATHS); \
-	else \
-		echo "flake8 not found. Install deps with 'make install' or run 'make lint-venv' after creating the venv."; \
-		exit 1; \
-	fi
-
-lint-venv:
-	@if [ ! -d "$(VENV_DIR)" ]; then \
-		$(UV) venv $(VENV_DIR); \
-	fi
-	@if [ ! -x "$(VENV_DIR)/bin/flake8" ]; then \
-		$(UV) pip install --python $(VENV_DIR)/bin/python flake8; \
-	fi
-	"$(VENV_DIR)/bin/flake8" --max-line-length 100 --ignore E203,W503 $(LINT_PATHS)
+python-install install install-venv install-env venv:
+	@$(MAKE) setup
 
 # Data cleanup
 # Removes files inside DATA_DIR (or .data by default) and recreates the directory
@@ -274,3 +78,123 @@ test-venv:
 		$(PYTHON) -m venv $(VENV_DIR); \
 	fi
 	$(VENV_DIR)/bin/pytest -q
+
+# Simplified workflow: ensure venv + .env for run/test/format/lint
+.PHONY: ensure-venv ensure-deps setup run test format lint docker-run
+LOAD_ENV = set -a; [ -f .env ] && . ./.env; set +a
+
+ensure-venv:
+	@if [ -d "$(VENV_DIR)" ]; then \
+		CUR_VER=$$("$(VENV_DIR)/bin/python" -c 'import sys; print(f"{sys.version_info[0]}.{sys.version_info[1]}")'); \
+		CUR_MINOR=$$(echo $$CUR_VER | cut -d. -f2); \
+		if [ "$$CUR_MINOR" -ge 14 ]; then \
+			echo "Existing venv uses Python $$CUR_VER which is unsupported by some deps; rebuilding with $(PY_FALLBACK)"; \
+			rm -rf "$(VENV_DIR)"; \
+		fi; \
+	fi
+	@if command -v $(UV) >/dev/null 2>&1 && [ -f .python-version ]; then \
+		REQ_PY=$$(cat .python-version); \
+		MAJOR=$${REQ_PY%%.*}; MINOR=$$(echo $$REQ_PY | cut -d. -f2); \
+		if [ "$$MAJOR" = "3" ] && [ "$$MINOR" -ge 14 ]; then \
+			echo "Requested Python $$REQ_PY but some dependencies lack 3.14 support; falling back to $(PY_FALLBACK)"; \
+			REQ_PY=$(PY_FALLBACK); \
+		fi; \
+		$(UV) python install "$$REQ_PY"; \
+	fi
+	@if [ ! -d "$(VENV_DIR)" ]; then \
+		if command -v $(UV) >/dev/null 2>&1; then \
+			if [ -f .python-version ]; then \
+				REQ_PY=$$(cat .python-version); \
+				MAJOR=$${REQ_PY%%.*}; MINOR=$$(echo $$REQ_PY | cut -d. -f2); \
+				if [ "$$MAJOR" = "3" ] && [ "$$MINOR" -ge 14 ]; then \
+					echo "Using Python $(PY_FALLBACK) to create venv for compatibility"; \
+					REQ_PY=$(PY_FALLBACK); \
+				fi; \
+				$(UV) venv --python "$$REQ_PY" $(VENV_DIR); \
+			else \
+				$(UV) venv $(VENV_DIR); \
+			fi; \
+		else \
+			$(PYTHON) -m venv $(VENV_DIR); \
+		fi; \
+	fi
+
+ensure-deps: ensure-venv
+	@if command -v $(UV) >/dev/null 2>&1; then \
+		$(UV) pip install --python $(VENV_DIR)/bin/python -r requirements.txt; \
+	else \
+		"$(VENV_DIR)/bin/python" -m pip install -r requirements.txt; \
+	fi
+
+setup: ensure-deps
+
+run: ensure-deps
+	@$(LOAD_ENV); \
+	"$(VENV_DIR)/bin/uvicorn" src.main:app --host 0.0.0.0 --port $(PORT)
+
+test: ensure-deps
+	@$(LOAD_ENV); \
+	"$(VENV_DIR)/bin/pytest" -q
+
+format: ensure-deps
+	@$(LOAD_ENV); \
+	"$(VENV_DIR)/bin/black" $(FORMAT_PATHS) && "$(VENV_DIR)/bin/isort" $(FORMAT_PATHS)
+
+lint: ensure-deps
+	@$(LOAD_ENV); \
+	"$(VENV_DIR)/bin/flake8" --max-line-length 100 --ignore E203,W503 $(LINT_PATHS)
+
+ollama-check:
+	@$(LOAD_ENV); \
+	OLLAMA_DEF=$${OLLAMA_HOST:-http://localhost:$(OLLAMA_PORT)}; \
+	if ! echo "$$OLLAMA_DEF" | grep -Eq '^https?://'; then \
+		OLLAMA_DEF="http://$$OLLAMA_DEF"; \
+	fi; \
+	URL="$${OLLAMA_DEF%/}/api/tags"; \
+	echo "Checking Ollama at $$URL"; \
+	STATUS=$$(curl -s -m 3 -o /dev/null -w '%{http_code}' "$$URL" || true); \
+	if [ "$$STATUS" = "200" ]; then \
+		echo "Ollama OK (HTTP $$STATUS)"; \
+		if command -v jq >/dev/null 2>&1; then \
+			curl -s "$$URL" | jq '{models_count: (.models | length)}'; \
+		fi; \
+	else \
+		echo "Ollama NOT reachable (HTTP $$STATUS)"; \
+		echo "Resolved host: $$OLLAMA_DEF"; \
+		echo "Tips:"; \
+		echo " - Ensure Ollama is installed and running: https://ollama.com/"; \
+		echo " - Default host is http://localhost:$(OLLAMA_PORT); override with OLLAMA_HOST env var"; \
+		echo " - On macOS/Windows with Docker, use OLLAMA_HOST=http://host.docker.internal:$(OLLAMA_PORT)"; \
+		exit 1; \
+	fi
+
+# Auto docker run: detect OS and choose networking
+# - Linux: use host network for access to localhost services (e.g., Ollama)
+# - macOS/Windows: use port mapping, and host.docker.internal for Ollama
+
+docker-build:
+	docker build -f docker/studio.Dockerfile -t $(APP_NAME) .
+
+docker-run:
+	@OS=`uname -s`; \
+	if [ "$$OS" = "Linux" ]; then \
+		echo "Running Docker (Linux, host network)"; \
+		docker rm -f $(APP_NAME)-dev >/dev/null 2>&1 || true; \
+		OLLAMA_DEF=$${OLLAMA_HOST:-http://localhost:$(OLLAMA_PORT)}; \
+		docker run -d --name $(APP_NAME)-dev --network host \
+		  -v "$(shell pwd)/agent_configs:/app/agent_configs" \
+		  --env-file .env \
+		  -e AGENT_CONFIG_DIR=/app/agent_configs \
+		  -e OLLAMA_HOST="$$OLLAMA_DEF" \
+		  $(APP_NAME); \
+	else \
+		echo "Running Docker (macOS/Windows, port mapping)"; \
+		docker rm -f $(APP_NAME)-dev >/dev/null 2>&1 || true; \
+		OLLAMA_DEF=$${OLLAMA_HOST:-http://host.docker.internal:$(OLLAMA_PORT)}; \
+		docker run -d --name $(APP_NAME)-dev -p $(PORT):8000 \
+		  -v "$(shell pwd)/agent_configs:/app/agent_configs" \
+		  --env-file .env \
+		  -e AGENT_CONFIG_DIR=/app/agent_configs \
+		  -e OLLAMA_HOST="$$OLLAMA_DEF" \
+		  $(APP_NAME); \
+	fi

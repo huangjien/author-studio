@@ -1,5 +1,5 @@
 # Dockerfile for AI Agent Hosting Application
-FROM python:3.14-slim
+FROM python:3.13-slim
 
 # Prevent Python from writing .pyc files and enable output buffering
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -19,12 +19,16 @@ COPY agent_configs /app/agent_configs
 RUN mkdir -p /app/.data
 
 # Default environment configuration (can be overridden at runtime)
-ENV API_KEY="changeme" \
-    AGENT_CONFIG_DIR="/app/agent_configs" \
+ENV AGENT_CONFIG_DIR="/app/agent_configs" \
     PERSISTENCE_MODE="file" \
-    DATA_DIR="/app/.data"
+    DATA_DIR="/app/.data" \
+    API_KEYS_FILE="/app/.data/api_keys.txt"
+
+# Copy and use entrypoint for secure API key generation on first startup
+COPY docker/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
 EXPOSE 8000
 
-# Start the FastAPI app
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Start via entrypoint (generates/persists API_KEY if unset and logs it)
+ENTRYPOINT ["/app/entrypoint.sh"]
