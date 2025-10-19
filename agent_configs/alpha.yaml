@@ -1,11 +1,36 @@
 
-        name: Alpha Bot
-        llm:
-          provider: openai
-          model: gpt-4o-mini
-        workflow:
-          type: single_step
-        prompts:
-          en: "Hello"
-        tools: []
+name: Alpha Bot
+llm:
+  provider: openai
+  model: gpt-4o-mini
+workflow:
+  type: single_step
+prompts:
+  en: "Hello"
+tools: []
+mcp_servers:
+  - name: Fetch
+    type: process
+    command: uvx
+    args:
+      - mcp-server-fetch
+    env: {}
+    persistent: true
+    initialize_timeout: 1.0
+    call_timeout: 5.0
+    list_tools_timeout: 2.0
+    tool_call_retries: 1
+    retry_backoff_ms: 100
+    priority: high
+    tools:
+      - web_search
+      - fetch
+  - name: HTTP Search
+    type: http
+    url: http://localhost:8012
+    path_template: /mcp/tools/{tool_name}
+    headers: {}
+    priority: low
+    tools:
+      - web_search
         

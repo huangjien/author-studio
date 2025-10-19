@@ -29,6 +29,9 @@ def build_agent(cfg: AgentConfig) -> Agent:
         workflow=_normalize_workflow(cfg.workflow),
         prompts=cfg.prompts,
         tools=cfg.tools or [],
+        mcp_servers=[
+            s.model_dump() if hasattr(s, "model_dump") else s for s in (cfg.mcp_servers or [])
+        ],
     )
 
 

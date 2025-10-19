@@ -23,6 +23,39 @@
       "type": "array",
       "items": { "type": "string" },
       "default": []
+    },
+    "mcp_servers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "type": { "type": "string" },
+          "url": { "type": ["string", "null"] },
+          "headers": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          },
+          "path_template": { "type": "string" },
+          "tools": { "type": "array", "items": { "type": "string" }, "default": [] },
+          "command": { "type": "string" },
+          "args": { "type": "array", "items": { "type": "string" }, "default": [] },
+          "env": {
+            "type": "object",
+            "additionalProperties": { "type": "string" },
+            "default": {}
+          },
+          "persistent": { "type": "boolean", "default": true },
+          "initialize_timeout": { "type": "number", "default": 3.0 },
+          "call_timeout": { "type": "number", "default": 5.0 },
+          "list_tools_timeout": { "type": "number", "default": 3.0 },
+          "tool_call_retries": { "type": "integer", "minimum": 0, "default": 1 },
+          "retry_backoff_ms": { "type": "integer", "minimum": 0, "default": 250 }
+        },
+        "required": ["name", "type"],
+        "additionalProperties": true
+      },
+      "default": []
     }
   },
   "additionalProperties": true
