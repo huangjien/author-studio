@@ -22,3 +22,13 @@ This document outlines the research and decisions made for the AI Agent Hosting 
 - **API Layer**: FastAPI will be used. A single endpoint `POST /agents/{agent_id}/invoke` will handle all agent interactions. The agent execution will be handled asynchronously.
 - **Configuration Management**: Agent configurations are loaded at startup. For production, changes will require a container restart. For local development, the server will be configured to restart on file changes.
 - **Performance & Scale**: As per the constitution, performance is not a primary goal. The initial design will be simple and synchronous within the agent interaction logic, with async handling at the API layer. This will be sufficient for the target scale of 100 agents and moderate traffic.
+
+## Implementation Kickoff (AutoGen)
+
+To bridge research to working code without disrupting the existing app/tests, we introduce an optional AutoGen adapter and demo:
+
+- Adapter: `src/agents/autogen_adapter.py` – lazy imports AutoGen; provides `run_single_turn(Agent, user_input)`
+- Demo: `scripts/run_autogen_demo.py` – standalone script to try AutoGen locally
+- Tasks: See `specs/001-ai-agent-hosting-app/tasks.md` → "Optional Add-on: AutoGen Integration"
+
+This approach allows immediate experimentation with AutoGen while keeping the core agent hosting app stable. Later, we can add opt-in endpoints and config mapping when desired.

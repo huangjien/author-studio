@@ -1,0 +1,93 @@
+openapi: 3.0.0
+info:
+  title: Author Studio API
+  version: 1.0.0
+paths:
+  /knowledge:
+    post:
+      summary: Create a new knowledge entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KnowledgeEntryInput'
+      responses:
+        '201':
+          description: Knowledge entry created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgeEntry'
+  /knowledge/search:
+    post:
+      summary: Search for knowledge entries
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                query:
+                  type: string
+      responses:
+        '200':
+          description: A list of knowledge entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/KnowledgeEntry'
+  /mcp/status:
+    get:
+      summary: Get the status of configured MCP servers
+      responses:
+        '200':
+          description: A list of MCP servers and their status
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MCPStatus'
+components:
+  schemas:
+    KnowledgeEntryInput:
+      type: object
+      properties:
+        title:
+          type: string
+        content:
+          type: string
+        author:
+          type: string
+        tags:
+          type: string
+    KnowledgeEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        content:
+          type: string
+        author:
+          type: string
+        creation_date:
+          type: string
+          format: date-time
+        tags:
+          type: string
+    MCPStatus:
+      type: object
+      properties:
+        name:
+          type: string
+        url:
+          type: string
+        status:
+          type: string
+          enum: [online, offline]

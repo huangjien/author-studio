@@ -1,0 +1,16 @@
+[
+  {
+    "name": "default-fetch",
+    "type": "process",
+    "description": "Stdio MCP server providing a 'fetch' tool",
+    "tools": ["fetch"],
+    "command": "uvx",
+    "args": ["mcp-server-fetch"],
+    "env": {},
+    "persistent": true,
+    "initialize_timeout": 3.0,
+    "call_timeout": 5.0,
+    "tool_call_retries": 1,
+    "retry_backoff_ms": 250
+  }
+]

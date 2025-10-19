@@ -103,5 +103,8 @@ async def mcp_tool_proxy(tool_name: str, req: ToolInvokeRequest):
             top_n = int(args.get("top_n", 5))
             return web_search(query=query, top_n=top_n)
         raise HTTPException(status_code=404, detail=f"Tool '{tool_name}' not found")
+    except HTTPException as e:
+        # Propagate expected HTTP errors (e.g., 404) unchanged
+        raise e
     except Exception as e:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"Unexpected error: {e}")
