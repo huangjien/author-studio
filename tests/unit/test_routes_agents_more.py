@@ -1,4 +1,3 @@
-import importlib
 import os
 
 from fastapi.testclient import TestClient
@@ -43,17 +42,9 @@ def test_list_agent_tools_generic_error(monkeypatch):
     assert resp.status_code == 500
 
 
-def test_invoke_route_success(monkeypatch, tmp_path):
+def test_invoke_route_success(tmp_path):
     api_key = "unit-key"
     os.environ["API_KEY"] = api_key
-    import src.services.agent_service as agent_service_module
-
-    importlib.reload(agent_service_module)
-
-    def ok(**kwargs):
-        return {"ok": True, "echo": kwargs["input_text"]}
-
-    monkeypatch.setattr(agent_service_module, "invoke_agent", ok, raising=True)
 
     client = TestClient(app)
     resp = client.post(
@@ -63,22 +54,15 @@ def test_invoke_route_success(monkeypatch, tmp_path):
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert data.get("ok") is True
-    assert data.get("echo") == "Hello"
+    assert data.get("agent_id") == "alpha-bot"
+    assert isinstance(data.get("output"), str)
+    assert "Echo" in data.get("output", "")
 
 
-def test_invoke_tool_not_implemented(monkeypatch):
-    import src.api.routes.agents as routes
-
-    class StubToolService:
-        def invoke(self, agent_id: str, tool_name: str, arguments: dict):
-            raise NotImplementedError("not implemented")
-
-    monkeypatch.setattr(routes, "ToolService", StubToolService, raising=True)
-
+def test_invoke_tool_route_removed():
     client = TestClient(app)
     resp = client.post("/agents/alpha-bot/tools/web_search", json={"arguments": {"query": "x"}})
-    assert resp.status_code == 501
+    assert resp.status_code == 404
 
 
 def test_mcp_tool_proxy_success():

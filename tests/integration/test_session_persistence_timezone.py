@@ -29,7 +29,7 @@ def setup_env(tmp_path):
     return target_dir
 
 
-def test_persisted_session_created_at_is_timezone_aware(tmp_path):
+def test_persisted_session_created_at_is_timezone_aware(tmp_path, monkeypatch):
     # Configure environment and agent
     target_dir = setup_env(tmp_path)
 
@@ -40,6 +40,11 @@ def test_persisted_session_created_at_is_timezone_aware(tmp_path):
     os.makedirs(tmp_data_dir, exist_ok=True)
     # Switch the file store base_dir to tmp path for isolation
     session_service.file.base_dir = tmp_data_dir
+
+    # Also ensure the /agents route uses this exact session_service instance
+    import src.api.routes.agents as routes
+
+    monkeypatch.setattr(routes, "session_service", session_service, raising=True)
 
     # Ensure registry sees the agent
     from src.agents.registry import AgentRegistry

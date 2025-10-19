@@ -30,7 +30,7 @@ def setup_env(tmp_path):
     return target_dir
 
 
-def test_persisted_session_history_includes_role_entries_and_echo(tmp_path):
+def test_persisted_session_history_includes_role_entries_and_echo(tmp_path, monkeypatch):
     # Configure environment and agent, with DATA_DIR for FileStore
     target_dir = setup_env(tmp_path)
 
@@ -50,6 +50,27 @@ def test_persisted_session_history_includes_role_entries_and_echo(tmp_path):
 
     registry = AgentRegistry()
     registry.reload(dir_path=target_dir)
+
+    # Patch AutoGen adapter in route to ensure deterministic echo even after reloads
+    import src.api.routes.agents as routes
+
+    # Also ensure the route uses the freshly reloaded session_service whose base_dir
+    # respects the DATA_DIR set above
+    from src.services.session_service import session_service as fresh_session
+
+    monkeypatch.setattr(routes, "session_service", fresh_session, raising=True)
+
+    async def echo_run(agent, user_input):
+        return {
+            "ok": True,
+            "agent_id": getattr(agent, "agent_id", "alpha-bot"),
+            "input": user_input,
+            "llm_config": getattr(agent, "llm_config", {}),
+            "chat_result": f"Echo: {user_input} (agent=alpha-bot)",
+            "flavor": "agentchat-0.7.5-mock",
+        }
+
+    monkeypatch.setattr(routes, "run_single_turn_async", echo_run, raising=True)
 
     import src.main as main_module
 

@@ -1,25 +1,18 @@
 import asyncio
-import importlib
 
 import pytest
 
 
 def test_invoke_route_keyerror_returns_404(monkeypatch):
     # Import route function directly to hit the KeyError except branch
+    import src.api.routes.agents as routes
     from src.api.routes.agents import InvokeRequest, invoke
-    from src.services import agent_service as agent_service_module
 
-    importlib.reload(agent_service_module)
-
-    def missing(*args, **kwargs):
+    # Cause a KeyError at the registry lookup stage (outside inner try)
+    def missing_agent(*args, **kwargs):
         raise KeyError("missing")
 
-    monkeypatch.setattr(
-        agent_service_module,
-        "invoke_agent",
-        missing,
-        raising=True,
-    )
+    monkeypatch.setattr(routes.registry, "get_agent", missing_agent, raising=True)
 
     class DummyRequest:
         headers = {"Accept-Language": "en"}

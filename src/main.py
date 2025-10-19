@@ -13,7 +13,6 @@ from fastapi.staticfiles import StaticFiles
 
 from src.agents.registry import AgentRegistry
 from src.api.routes.agents import router as agents_router
-from src.api.routes.autogen import router as autogen_router
 from src.api.routes.knowledge import router as knowledge_router
 from src.api.routes.mcp import router as mcp_router
 from src.config.env import settings
@@ -321,9 +320,6 @@ def _live_connectivity(
 app.include_router(agents_router)
 app.include_router(mcp_router)
 app.include_router(knowledge_router)
-# Feature-flagged AutoGen router
-if settings.autogen_enabled:
-    app.include_router(autogen_router)
 
 
 @app.get("/health")

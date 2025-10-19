@@ -15,6 +15,10 @@ class Settings(BaseModel):
         default_factory=lambda: os.getenv("AUTOGEN_ENABLED", "0").strip().lower()
         in {"1", "true", "yes", "on"}
     )
+    agents_use_autogen: bool = Field(
+        default_factory=lambda: os.getenv("AGENTS_USE_AUTOGEN", "1").strip().lower()
+        in {"1", "true", "yes", "on"}
+    )
 
     # Pydantic v2 configuration using ConfigDict
     model_config = ConfigDict(arbitrary_types_allowed=True)

@@ -33,6 +33,7 @@ Notes:
 from __future__ import annotations
 
 import asyncio
+import os
 import re
 from typing import Any, Dict, Optional
 
@@ -58,7 +59,13 @@ def _import_agentchat():
 
 
 def is_available() -> bool:
-    """Return True if AgentChat 0.7.5 is importable."""
+    """Return True if AgentChat 0.7.5 is importable or mock mode is enabled.
+
+    In mock mode, we advertise availability so routes can proceed deterministically
+    without requiring the actual AgentChat packages at runtime.
+    """
+    if _mock_mode_enabled():
+        return True
     return _import_agentchat() is not None
 
 
@@ -107,12 +114,34 @@ def _to_valid_agent_name(agent_id: str) -> str:
     return f"assistant_{sanitized}"
 
 
+def _mock_result(agent: Agent, user_input: str) -> Dict[str, Any]:
+    """Produce a deterministic echo result used in test or mock environments."""
+    llm_config = _to_llm_config(agent.llm_config)
+    return {
+        "ok": True,
+        "agent_id": agent.agent_id,
+        "input": user_input,
+        "llm_config": llm_config,
+        "chat_result": f"Echo: {user_input} (agent={agent.agent_id})",
+        "flavor": "agentchat-0.7.5-mock",
+    }
+
+
+def _mock_mode_enabled() -> bool:
+    """Check if a dedicated mock mode is enabled via environment flag."""
+    flag = os.getenv("AGENTS_AUTOGEN_MOCK", "").strip().lower()
+    return flag in ("1", "true", "yes", "on")
+
+
 def run_single_turn(agent: Agent, user_input: str) -> Dict[str, Any]:
     """Run a single-turn AutoGen conversation using AgentChat 0.7.5.
 
     Returns a structured dict summarizing the result, or an error if AgentChat
     is not available.
     """
+    if _mock_mode_enabled():
+        return _mock_result(agent, user_input)
+
     agentchat = _import_agentchat()
     if agentchat is None:
         return {
@@ -179,6 +208,9 @@ async def run_single_turn_async(agent: Agent, user_input: str) -> Dict[str, Any]
     Returns the same structured dict as `run_single_turn`. If AgentChat is not available,
     returns an error dict indicating the missing dependency.
     """
+    if _mock_mode_enabled():
+        return _mock_result(agent, user_input)
+
     agentchat = _import_agentchat()
     if agentchat is None:
         return {

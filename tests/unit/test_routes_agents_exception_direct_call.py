@@ -1,25 +1,18 @@
 import asyncio
-import importlib
 
 import pytest
 
 
 def test_invoke_route_exception_direct_call(monkeypatch):
     # Import route function directly to ensure coverage hits the specific raise line
+    import src.api.routes.agents as routes
     from src.api.routes.agents import InvokeRequest, invoke
-    from src.services import agent_service as agent_service_module
 
-    importlib.reload(agent_service_module)
-
-    def boom(*args, **kwargs):
+    async def boom(*args, **kwargs):
         raise RuntimeError("Kaboom")
 
-    monkeypatch.setattr(
-        agent_service_module,
-        "invoke_agent",
-        boom,
-        raising=True,
-    )
+    # Patch AutoGen adapter to raise
+    monkeypatch.setattr(routes, "run_single_turn_async", boom, raising=True)
 
     class DummyRequest:
         headers = {"Accept-Language": "en"}

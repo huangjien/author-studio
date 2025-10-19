@@ -48,18 +48,11 @@ def test_invoke_tool_unknown_agent_returns_404():
     assert resp.status_code == 404
 
 
-def test_invoke_tool_generic_error_returns_500(monkeypatch, tmp_path):
-    setup_agent(tmp_path)
-    import src.api.routes.agents as routes
-
-    class BoomService:
-        def invoke(self, agent_id: str, tool_name: str, arguments: dict):
-            raise RuntimeError("boom")
-
-    monkeypatch.setattr(routes, "ToolService", BoomService, raising=True)
+def test_invoke_tool_generic_error_returns_404():
     client = TestClient(app)
     resp = client.post(
         "/agents/alpha-bot/tools/web_search",
         json={"arguments": {"query": "x"}},
     )
-    assert resp.status_code == 500
+    # The per-agent tool invocation route has been removed; expect 404
+    assert resp.status_code == 404

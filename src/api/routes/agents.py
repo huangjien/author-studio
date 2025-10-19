@@ -3,11 +3,18 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
+# AutoGen adapter imports for preferred invocation path
+from src.agents.autogen_adapter import is_available as autogen_available
+from src.agents.autogen_adapter import run_single_turn, run_single_turn_async
+from src.agents.autogen_adapter import supports_agentchat_async as autogen_supports_async
 from src.agents.registry import AgentRegistry
 from src.api.security import verify_api_key
 from src.config.env import settings
-from src.services import agent_service
-from src.services.tool_service import ToolNotFoundError, ToolService
+from src.core.i18n import get_localized_prompt
+from src.services.session_service import session_service
+
+# from src.services import agent_service  # Removed legacy import, AutoGen-only path now
+from src.services.tool_service import ToolService
 
 router = APIRouter()
 registry = AgentRegistry()
@@ -55,39 +62,84 @@ async def list_agent_tools(agent_id: str):
 
 @router.post("/agents/{agent_id}/invoke", dependencies=[Depends(verify_api_key)])
 async def invoke(agent_id: str, request: Request, body: InvokeRequest):
+    # AutoGen-only path: use AutoGen adapter and fail if unavailable
     try:
         language = request.headers.get("Accept-Language")
-        result = agent_service.invoke_agent(
-            agent_id=agent_id,
-            input_text=body.input,
-            session_id=body.session_id,
-            language=language,
-        )
-        return result
+        registry.reload(dir_path=settings.agent_config_dir)
+        agent = registry.get_agent(agent_id)
+        if not agent:
+            raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
+
+        # Enforce AutoGen-only mode based on feature flag; if disabled, return 501
+        if not settings.agents_use_autogen:
+            raise HTTPException(
+                status_code=501,
+                detail=(
+                    "AutoGen-only mode is disabled (AGENTS_USE_AUTOGEN=false). \
+                    Enable it to use /agents invoke."
+                ),
+            )
+
+        # Require AutoGen to be installed; if not available, raise 501 Not Implemented
+        if not autogen_available():
+            raise HTTPException(
+                status_code=501,
+                detail=(
+                    "AutoGen AgentChat 0.7.5 is not installed. \
+                    Install with `pip install .[autogen-stable]` "
+                    'or `pip install "autogen-agentchat==0.7.5" \
+                    "autogen-ext[openai,mcp]==0.7.5"`.'
+                ),
+            )
+
+        # Create or continue session (preserve session behavior and persistence)
+        if body.session_id:
+            session = session_service.continue_session(
+                body.session_id
+            ) or session_service.create_session(agent_id)
+        else:
+            session = session_service.create_session(agent_id)
+
+        # Run AutoGen using async path if supported
+        try:
+            if autogen_supports_async():
+                result = await run_single_turn_async(agent, body.input)
+            else:
+                result = run_single_turn(agent, body.input)
+
+            if not result.get("ok"):
+                # AutoGen responded with an error; propagate as 500
+                raise RuntimeError(result.get("error") or "AutoGen error")
+
+            # Use localized language for session history metadata
+            selected_lang, _prompt_text = get_localized_prompt(agent.prompts or {}, language)
+            output_text = str(result.get("chat_result"))
+
+            # Update session history and persist
+            session.history.append(
+                {"role": "user", "content": body.input, "language": language or selected_lang}
+            )
+            session.history.append(
+                {"role": "agent", "content": output_text, "language": selected_lang}
+            )
+            session_service._persist(session)
+
+            return {
+                "agent_id": agent.agent_id,
+                "session_id": session.session_id,
+                "output": output_text,
+                "selected_language": selected_lang,
+            }
+        except HTTPException:
+            raise
+        except Exception as e:  # noqa: BLE001
+            raise HTTPException(status_code=500, detail=str(e))
+    except HTTPException as e:
+        raise e
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post("/agents/{agent_id}/tools/{tool_name}")
-async def invoke_tool(agent_id: str, tool_name: str, req: ToolInvokeRequest):
-    registry.reload(dir_path=settings.agent_config_dir)
-    agent = registry.get_agent(agent_id)
-    if not agent:
-        raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
-    try:
-        service = ToolService()
-        result = service.invoke(
-            agent_id=agent_id, tool_name=tool_name, arguments=req.arguments or {}
-        )
-        return result
-    except ToolNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except NotImplementedError as e:
-        raise HTTPException(status_code=501, detail=str(e))
-    except Exception as e:  # noqa: BLE001
-        raise HTTPException(status_code=500, detail=f"Unexpected error: {e}")
 
 
 # Minimal MCP-compatible endpoint to proxy tool invocation directly.

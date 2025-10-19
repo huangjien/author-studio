@@ -1,5 +1,3 @@
-import pytest
-
 from src.agents import autogen_adapter
 from src.agents.autogen_adapter import (
     _to_llm_config,
@@ -69,8 +67,9 @@ def test_supports_agentchat_async_false_when_missing(monkeypatch):
     assert supports_agentchat_async() is False
 
 
-@pytest.mark.asyncio
-async def test_run_single_turn_async_error_when_missing_agentchat(monkeypatch):
+def test_run_single_turn_async_error_when_missing_agentchat(monkeypatch):
+    import asyncio
+
     monkeypatch.setattr(autogen_adapter, "_import_agentchat", lambda: None)
     agent = Agent(
         agent_id="missing",
@@ -80,7 +79,7 @@ async def test_run_single_turn_async_error_when_missing_agentchat(monkeypatch):
         tools=[],
         mcp_servers=[],
     )
-    result = await run_single_turn_async(agent, "hello")
+    result = asyncio.run(run_single_turn_async(agent, "hello"))
     assert result["ok"] is False
     assert "AgentChat 0.7.5 is not installed" in result.get("error", "")
     assert result.get("flavor") == "agentchat-0.7.5"
@@ -141,8 +140,9 @@ def test_run_single_turn_passes_system_message_from_workflow(monkeypatch):
     assert RecAssistant.last_system_message == "Hello System"
 
 
-@pytest.mark.asyncio
-async def test_run_single_turn_async_passes_system_message_from_prompts(monkeypatch):
+def test_run_single_turn_async_passes_system_message_from_prompts(monkeypatch):
+    import asyncio
+
     monkeypatch.setattr(
         autogen_adapter,
         "_import_agentchat",
@@ -161,7 +161,7 @@ async def test_run_single_turn_async_passes_system_message_from_prompts(monkeypa
         mcp_servers=[],
     )
 
-    result = await run_single_turn_async(agent, "async")
+    result = asyncio.run(run_single_turn_async(agent, "async"))
     assert result["ok"] is True
     assert RecAssistant.last_system_message == "From Prompts"
 

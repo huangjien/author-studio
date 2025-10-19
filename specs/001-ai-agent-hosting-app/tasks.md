@@ -239,7 +239,7 @@ The following tasks add a minimal, optional integration with the Microsoft AutoG
 - [X] T103 [P] Unit tests: `tests/unit/test_autogen_adapter.py` (skip if AutoGen not installed; assert graceful behavior)
 - [ ] T104 [P] Extend adapter: support system prompts and simple group chat (Assistant + UserProxy + GroupChatManager)
 - [X] T105 [P] Config mapping: allow `agent_configs/*.yaml` to opt-in with `workflow.type: autogen` (ignored by default)
-- [X] T106 [P] Endpoint prototype: optional `/autogen/{agent_id}/invoke` (behind feature flag; separate router)
+- [ ] T106 [P] (Removed) Endpoint prototype for optional `/autogen/{agent_id}/invoke` — route removed; use canonical `/agents/{agent_id}/invoke`.
 
 Execution notes:
 - No dependency changes required for core app/tests.

@@ -55,6 +55,8 @@ def test_docker_run_and_invoke_endpoint():
         f"API_KEY={API_KEY}",
         "-e",
         "AGENT_CONFIG_DIR=/app/agent_configs",
+        "-e",
+        "AGENTS_AUTOGEN_MOCK=1",
         IMAGE_NAME,
     ]
     run_proc = subprocess.run(run_cmd, cwd=str(REPO_ROOT))

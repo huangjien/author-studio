@@ -1,5 +1,5 @@
 name: AutoGen Alpha
-description: "AutoGen single-turn assistant for testing /autogen/{agent_id}/invoke"
+description: "AutoGen single-turn assistant for adapter tests (use /agents/{agent_id}/invoke)"
 llm:
   provider: openai
   model: gpt-4o-mini

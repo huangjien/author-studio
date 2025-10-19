@@ -207,23 +207,47 @@ To use it:
 - Pull the model: `ollama pull qwen3:8b`.
 - The agent id will be `qwen3-8b`.
 
-## Using AutoGen (Optional)
-AutoGen integration is provided via an optional, feature-flagged adapter and endpoint. If AutoGen is not installed or the feature flag is off, the rest of the app and tests continue to work.
+## Using AutoGen with /agents (Default)
+The `/agents/{agent_id}/invoke` endpoint now delegates to the AutoGen adapter by default. This provides:
+- Async, non-blocking single-turn execution using AgentChat 0.7.5
+- Deterministic mock mode for tests and local dev
+- Session persistence and localization identical to previous behavior
 
-### Install
-Recommended (stable AgentChat, version 0.7.5):
+Install AutoGen:
 ```bash
 pip install -U "autogen-agentchat==0.7.5" "autogen-ext[openai,mcp]==0.7.5"
 # Or via project extras:
 pip install .[autogen-stable]
 ```
 
-Ensure your provider credentials (e.g., `OPENAI_API_KEY`) are set in the environment.
+Environment flags:
+- `AGENTS_USE_AUTOGEN` (default `true`): enables AutoGen-only mode for `/agents/{agent_id}/invoke`.
+  - If set to `false`, the endpoint responds with `501 Not Implemented`.
+- `AGENTS_AUTOGEN_MOCK` (default `0`): when set to `1`, the AutoGen adapter returns a deterministic echo result.
+  - Useful for Docker tests and offline local development without provider credentials.
+
+Example request:
+```bash
+curl -s http://localhost:8000/agents/alpha-bot/invoke \
+  -H "X-API-Key: $API_KEY" \
+  -H "Accept-Language: en" \
+  -H "Content-Type: application/json" \
+  -d '{"input":"Hello from AutoGen"}' | jq
+```
+Response shape:
+```json
+{
+  "agent_id": "alpha-bot",
+  "session_id": "...",
+  "output": "Echo: Hello from AutoGen (agent=alpha-bot)",
+  "selected_language": "en"
+}
+```
+
+Provider keys:
+- Set `OPENAI_API_KEY` (or other providers as supported by your agents) in the environment when not using mock mode.
+- Output content is model-dependent; tests only assert the presence of a string `output`.
 
 MCP integration:
 - The `autogen-stable` extra includes `autogen-ext[mcp]` to enable connecting to MCP servers.
 - See `mcp_servers.json` and upcoming docs for configuring MCP tools.
-
-Runtime behavior:
-- The `/autogen/{agent_id}/invoke` endpoint is async.
-- When AgentChat 0.7.5 is installed, the endpoint uses the adapter's fully async path (no `asyncio.run`), suitable for web contexts.

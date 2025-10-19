@@ -1,5 +1,3 @@
-import pytest
-
 from src.agents import autogen_adapter
 from src.agents.autogen_adapter import (
     _extract_system_message,
@@ -133,8 +131,9 @@ def test_run_single_turn_with_stubbed_agentchat(monkeypatch):
     assert "stub-response: Task text [stub-model]" in result["chat_result"]
 
 
-@pytest.mark.asyncio
-async def test_run_single_turn_async_with_stubbed_agentchat(monkeypatch):
+def test_run_single_turn_async_with_stubbed_agentchat(monkeypatch):
+    import asyncio
+
     monkeypatch.setattr(
         autogen_adapter,
         "_import_agentchat",
@@ -152,7 +151,7 @@ async def test_run_single_turn_async_with_stubbed_agentchat(monkeypatch):
         tools=[],
         mcp_servers=[],
     )
-    result = await run_single_turn_async(agent, "Async task")
+    result = asyncio.run(run_single_turn_async(agent, "Async task"))
     assert result["ok"] is True
     assert result["agent_id"] == "beta"
     assert result["llm_config"]["model"] == "stub-model-2"

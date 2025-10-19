@@ -1,4 +1,3 @@
-import importlib
 import os
 
 from fastapi.testclient import TestClient
@@ -28,20 +27,14 @@ prompts:
 
 def test_invoke_route_generic_exception_returns_500(tmp_path, monkeypatch):
     api_key = setup_env(tmp_path)
+    # Cause the AutoGen adapter to fail
+    import src.api.routes.agents as routes
     from src.main import app
-    from src.services import agent_service as agent_service_module
 
-    importlib.reload(agent_service_module)
-
-    def boom(*args, **kwargs):
+    async def bad_run(*args, **kwargs):
         raise RuntimeError("Kaboom")
 
-    monkeypatch.setattr(
-        agent_service_module,
-        "invoke_agent",
-        boom,
-        raising=True,
-    )
+    monkeypatch.setattr(routes, "run_single_turn_async", bad_run, raising=True)
 
     client = TestClient(app)
     resp = client.post(

@@ -71,25 +71,16 @@ def test_invoke_unknown_agent_returns_404(tmp_path):
 
 def test_invoke_internal_error_returns_500(tmp_path, monkeypatch):
     setup_env(tmp_path)
+    # Monkeypatch the AutoGen adapter to raise
+    import src.api.routes.agents as routes
     from src.main import app
 
-    client = TestClient(app)
-
-    # Monkeypatch the service to raise
-    from src.services import agent_service as agent_service_module
-
-    def boom(*args, **kwargs):
+    async def boom(*args, **kwargs):
         raise RuntimeError("Kaboom")
 
-    # If service is not yet implemented, skip monkeypatching.
-    # The test will still fail due to missing endpoint.
-    monkeypatch.setattr(
-        agent_service_module,
-        "invoke_agent",
-        boom,
-        raising=False,
-    )
+    monkeypatch.setattr(routes, "run_single_turn_async", boom, raising=True)
 
+    client = TestClient(app)
     resp = client.post(
         "/agents/alpha-bot/invoke",
         headers={"X-API-Key": API_KEY},
