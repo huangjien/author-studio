@@ -71,32 +71,13 @@ class MCPClient:
     def _write_message(self, payload: Dict[str, Any]) -> None:
         if not self.proc or not self.proc.stdin:
             raise MCPClientError("Process stdin not available")
-        body = json.dumps(payload).encode("utf-8")
-        header = f"Content-Length: {len(body)}\r\n\r\n".encode("ascii")
+        # MCP stdio transport uses newline-delimited JSON, not LSP-style headers
+        message = json.dumps(payload) + "\n"
         try:
-            self.proc.stdin.write(header)
-            self.proc.stdin.write(body)
+            self.proc.stdin.write(message.encode("utf-8"))
             self.proc.stdin.flush()
         except Exception as e:  # noqa: BLE001
             raise MCPClientError(f"Failed to write MCP message: {e}")
-
-    def _read_exact(self, n: int, timeout: float) -> bytes:
-        if not self.proc or not self.proc.stdout:
-            raise MCPClientError("Process stdout not available")
-        deadline = time.time() + timeout
-        buf = b""
-        while len(buf) < n:
-            remaining = max(0.0, deadline - time.time())
-            if remaining == 0.0:
-                raise MCPClientError("Timeout reading MCP body")
-            rlist, _, _ = select.select([self.proc.stdout], [], [], remaining)
-            if not rlist:
-                continue
-            chunk = self.proc.stdout.read(n - len(buf))
-            if not chunk:
-                raise MCPClientError("EOF while reading MCP body")
-            buf += chunk
-        return buf
 
     def _readline(self, timeout: float) -> bytes:
         if not self.proc or not self.proc.stdout:
@@ -118,24 +99,15 @@ class MCPClient:
                 return line
 
     def _read_message(self, timeout: float = 3.0) -> Dict[str, Any]:
-        length: Optional[int] = None
-        while True:
-            line = self._readline(timeout)
-            s = line.decode("ascii", errors="ignore").strip()
-            if s == "":
-                break
-            if s.lower().startswith("content-length:"):
-                try:
-                    length = int(s.split(":", 1)[1].strip())
-                except Exception:  # noqa: BLE001
-                    raise MCPClientError("Invalid Content-Length header")
-        if length is None:
-            raise MCPClientError("Missing Content-Length header")
-        body = self._read_exact(length, timeout)
+        # MCP stdio transport uses newline-delimited JSON
+        line = self._readline(timeout)
         try:
-            return json.loads(body.decode("utf-8"))
+            message_str = line.decode("utf-8").strip()
+            if not message_str:
+                raise MCPClientError("Empty message received")
+            return json.loads(message_str)
         except Exception as e:  # noqa: BLE001
-            raise MCPClientError(f"Invalid JSON body: {e}")
+            raise MCPClientError(f"Invalid JSON message: {e}")
 
     def _request(
         self,
@@ -160,6 +132,8 @@ class MCPClient:
         result = resp.get("result")
         if result is None:
             raise MCPClientError("Missing result in MCP response")
+        if not isinstance(result, dict):
+            raise MCPClientError(f"Invalid result type from MCP response: {type(result).__name__}")
         return result
 
     def initialize(self, timeout: float = 3.0) -> None:
@@ -167,6 +141,7 @@ class MCPClient:
             self._request(
                 "initialize",
                 {
+                    "protocolVersion": "2024-11-05",
                     "capabilities": {},
                     "clientInfo": {"name": "author-studio", "version": "0.1"},
                 },

@@ -53,3 +53,21 @@ AGENTS_AUTOGEN_SESSION_TTL_DAYS=30
 # ANTHROPIC_API_KEY=sk-xxxx
 # GROQ_API_KEY=sk-xxxx
 ```
+
+MCP integration
+- Agents can declare MCP servers via `mcp_servers` in their YAML (see `agent_configs/alpha.yaml`).
+- A sample `mcp_servers.json` is included at repo root; the `/mcp/status` endpoint reports configured servers.
+- The `/agents/{agent_id}/invoke` endpoint supports directive-driven tool routing when the LLM emits an `MCP_DIRECTIVE:` JSON.
+- Tool execution results are wrapped with metadata in responses:
+  - `provider`: `process`, `http`, or `local`
+  - `server`: server name
+  - `data`: tool-specific payload
+
+Example curl
+```bash
+curl -sS -X POST http://localhost:8000/agents/alpha-bot/invoke \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: $(tail -n 1 keys.txt)" \
+  -d '{"input": "Search Wikipedia for LangChain, top 3. Emit MCP_DIRECTIVE with provider=process and tool=web_search."}' \
+  | jq '{tool_used, tool_result: {provider: .tool_result.provider, server: .tool_result.server, has_data: (.tool_result.data != null)}}'
+```

@@ -19,14 +19,18 @@ PY_FALLBACK := 3.13
 FORMAT_PATHS ?= src tests
 LINT_PATHS ?= src tests
 
-.PHONY: help setup run test docker-build docker-run docker-stop docker-clean format lint lint-no-tests ollama-check data-clean keys-generate
+.PHONY: help setup run test docker-build docker-run docker-stop docker-clean format lint lint-no-tests ollama-check data-clean keys-generate autogen-install setup-autogen run-autogen test-autogen
 
 help:
 	@echo "Available targets:"
 	@echo "  help            - Show this help message"
 	@echo "  setup           - Detect and install Python (via uv), create .venv, and install dependencies"
+	@echo "  setup-autogen   - Setup venv/deps and install autogen-stable extras (AgentChat + MCP)"
+	@echo "  autogen-install - Install autogen-stable extras into the venv"
 	@echo "  run             - Run the FastAPI app (auto-creates .venv, loads .env)"
+	@echo "  run-autogen     - Run the app with AGENTS_USE_AUTOGEN=1 after installing autogen-stable"
 	@echo "  test            - Run tests (auto-creates .venv, loads .env)"
+	@echo "  test-autogen    - Run tests with AGENTS_USE_AUTOGEN=1 after installing autogen-stable"
 	@echo "  docker-build    - Build the Docker image"
 	@echo "  docker-run      - Run the Docker container (auto-detect OS; uses host network on Linux)"
 	@echo "  docker-stop     - Stop and remove the Docker container"
@@ -207,3 +211,25 @@ docker-run:
 		  -e OLLAMA_HOST="$$OLLAMA_DEF" \
 		  $(APP_NAME); \
 	fi
+
+# Install AutoGen AgentChat and MCP extensions via project extra
+# Uses uv if available; otherwise falls back to pip in the venv
+autogen-install: ensure-venv
+	@if command -v $(UV) >/dev/null 2>&1; then \
+		$(UV) pip install --python $(VENV_DIR)/bin/python autogen-agentchat==0.7.5 "autogen-ext[openai,mcp]==0.7.5"; \
+	else \
+		"$(VENV_DIR)/bin/python" -m pip install autogen-agentchat==0.7.5 "autogen-ext[openai,mcp]==0.7.5"; \
+	fi
+
+# Setup including AutoGen extras
+setup-autogen: ensure-deps autogen-install
+
+# Run the app with AutoGen enabled, ensuring extras are installed
+run-autogen: ensure-deps autogen-install
+	@$(LOAD_ENV); \
+	AGENTS_USE_AUTOGEN=1 "$(VENV_DIR)/bin/uvicorn" src.main:app --host 0.0.0.0 --port $(PORT)
+
+# Run tests with AutoGen enabled
+test-autogen: ensure-deps autogen-install
+	@$(LOAD_ENV); \
+	AGENTS_USE_AUTOGEN=1 "$(VENV_DIR)/bin/pytest" -q

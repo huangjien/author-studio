@@ -1,3 +1,6 @@
+import json
+import os
+import re
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
@@ -16,6 +19,9 @@ from src.services.session_service import session_service
 # from src.services import agent_service  # Removed legacy import, AutoGen-only path now
 from src.services.tool_service import ToolService
 
+# Removed smart-invoke native import to align with AutoGen-only workflow
+# from src.services.agent_service import invoke_agent as invoke_agent_native
+
 router = APIRouter()
 registry = AgentRegistry()
 
@@ -31,13 +37,13 @@ class ToolInvokeRequest(BaseModel):
 
 @router.get("/agents")
 async def list_agents():
-    registry.reload(dir_path=settings.agent_config_dir)
+    registry.reload(dir_path=os.getenv("AGENT_CONFIG_DIR", settings.agent_config_dir))
     return registry.list_agents()
 
 
 @router.get("/agents/{agent_id}")
 async def get_agent(agent_id: str):
-    registry.reload(dir_path=settings.agent_config_dir)
+    registry.reload(dir_path=os.getenv("AGENT_CONFIG_DIR", settings.agent_config_dir))
     agent = registry.get_agent(agent_id)
     if not agent:
         raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
@@ -46,7 +52,7 @@ async def get_agent(agent_id: str):
 
 @router.get("/agents/{agent_id}/tools")
 async def list_agent_tools(agent_id: str):
-    registry.reload(dir_path=settings.agent_config_dir)
+    registry.reload(dir_path=os.getenv("AGENT_CONFIG_DIR", settings.agent_config_dir))
     agent = registry.get_agent(agent_id)
     if not agent:
         raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
@@ -60,6 +66,67 @@ async def list_agent_tools(agent_id: str):
         raise HTTPException(status_code=500, detail=f"Unexpected error: {e}")
 
 
+def _extract_json_after_marker(text: str, marker: str) -> Optional[str]:
+    """Given a text, locate `marker` and extract the first balanced JSON object that follows it.
+
+    This avoids failures when the directive JSON is followed by trailing text, quotes, or metadata.
+    """
+    try:
+        if not text:
+            return None
+        idx = text.find(marker)
+        if idx == -1:
+            return None
+        # Start scanning from the first '{' after the marker
+        start = text.find("{", idx)
+        if start == -1:
+            return None
+        depth = 0
+        i = start
+        # Track whether we're inside a string to ignore braces within strings
+        in_str = False
+        escape = False
+        while i < len(text):
+            ch = text[i]
+            if in_str:
+                if escape:
+                    escape = False
+                elif ch == "\\":
+                    escape = True
+                elif ch == '"':
+                    in_str = False
+            else:
+                if ch == '"':
+                    in_str = True
+                elif ch == "{":
+                    depth += 1
+                elif ch == "}":
+                    depth -= 1
+                    if depth == 0:
+                        # Include closing brace
+                        return text[start : i + 1]
+            i += 1
+        return None
+    except Exception:
+        return None
+
+
+def _parse_mcp_directive(text: str) -> Optional[Dict[str, Any]]:
+    """Extract a JSON directive line starting with MCP_DIRECTIVE: {...}.
+
+    Returns a dict with keys: tool, provider, arguments. If none found, returns None.
+    """
+    try:
+        json_str = _extract_json_after_marker(text, "MCP_DIRECTIVE:")
+        if json_str:
+            # Strip code fences if present
+            json_str = re.sub(r"^`+|`+$", "", json_str).strip()
+            return json.loads(json_str)
+    except Exception:
+        return None
+    return None
+
+
 @router.post("/agents/{agent_id}/invoke", dependencies=[Depends(verify_api_key)])
 async def invoke(
     agent_id: str,
@@ -70,7 +137,7 @@ async def invoke(
     # AutoGen-only path: use AutoGen adapter and fail if unavailable
     try:
         language = accept_language
-        registry.reload(dir_path=settings.agent_config_dir)
+        registry.reload(dir_path=os.getenv("AGENT_CONFIG_DIR", settings.agent_config_dir))
         agent = registry.get_agent(agent_id)
         if not agent:
             raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
@@ -138,6 +205,28 @@ async def invoke(
 
             output_text = str(result.get("chat_result"))
 
+            # Try to extract MCP directive and invoke tool if present
+            tool_used: Optional[str] = None
+            tool_result: Optional[Dict[str, Any]] = None
+            directive = _parse_mcp_directive(output_text)
+            if isinstance(directive, dict):
+                tool_name = str(directive.get("tool") or "").strip()
+                provider = str(directive.get("provider") or "").strip().lower()
+                arguments = dict(directive.get("arguments") or {})
+                if tool_name:
+                    svc = ToolService(dir_path=settings.agent_config_dir)
+                    # Map provider to 'prefer' hint for server resolution
+                    if provider in ("process", "http", "local", "stdio"):
+                        arguments.setdefault("prefer", provider)
+                    try:
+                        tool_result = svc.invoke(
+                            agent_id=agent_id, tool_name=tool_name, arguments=arguments
+                        )
+                        tool_used = tool_name
+                    except Exception as tool_err:
+                        # Surface tool error by appending to output, do not fail the whole request
+                        output_text = output_text + f"\n\n[Tool error: {tool_err}]"
+
             # Update session history and persist
             session.history.append(
                 {"role": "user", "content": body.input, "language": language or selected_lang}
@@ -147,12 +236,18 @@ async def invoke(
             )
             session_service._persist(session)
 
-            return {
+            resp: Dict[str, Any] = {
                 "agent_id": agent.agent_id,
                 "session_id": session.session_id,
                 "output": output_text,
                 "selected_language": selected_lang,
             }
+            if tool_used:
+                resp["tool_used"] = tool_used
+            if tool_result is not None:
+                resp["tool_result"] = tool_result
+            return resp
+
         except HTTPException:
             raise
         except Exception as e:  # noqa: BLE001

@@ -41,10 +41,16 @@ def test_tool_service_invoke_local_web_search() -> None:
             tool_name="web_search",
             arguments={"query": "hello", "top_n": 1},
         )
-        assert result["tool"] == "web_search"
-        assert result["query"] == "hello"
-        assert isinstance(result["results"], list)
-        assert len(result["results"]) == 1
+        # Verify wrapped metadata structure
+        assert isinstance(result, dict)
+        assert result.get("provider") == "local"
+        assert result.get("server") == "local-provider"
+        assert isinstance(result.get("data"), dict)
+        payload = result["data"]
+        assert payload["tool"] == "web_search"
+        assert payload["query"] == "hello"
+        assert isinstance(payload["results"], list)
+        assert len(payload["results"]) == 1
     finally:
         teardown_env(target_dir)
 

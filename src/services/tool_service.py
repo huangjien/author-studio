@@ -385,6 +385,8 @@ class ToolService:
                             f"srlimit={max(1, min(top_n, 5))}&srsearch={q}"
                         )
                         fetch_res = _call_with_retry("fetch", {"url": url})
+                        if not isinstance(fetch_res, dict):
+                            fetch_res = {}
                         data = fetch_res.get("body")
                         try:
                             import json as _json
@@ -456,6 +458,8 @@ class ToolService:
                                 f"srlimit={max(1, min(top_n, 5))}&srsearch={q}"
                             )
                             fetch_res = _call_ephemeral("fetch", {"url": url})
+                            if not isinstance(fetch_res, dict):
+                                fetch_res = {}
                             data = fetch_res.get("body")
                             try:
                                 import json as _json
@@ -511,7 +515,7 @@ class ToolService:
         # Auto-select candidate servers and try them in order
         candidates = self._resolve_servers(agent_dict, tool_name, arguments)
         if not candidates:
-            # Final graceful fallback for demos/tests
+            # Final graceful fallback for demos/tests with consistent metadata
             if tool_name == "web_search":
                 from src.tools.providers.local_web_search import web_search
 
@@ -528,7 +532,12 @@ class ToolService:
         errors: list[str] = []
         for server in candidates:
             try:
-                return self._invoke_on_server(server, agent_id, tool_name, arguments)
+                data = self._invoke_on_server(server, agent_id, tool_name, arguments)
+                return {
+                    "provider": server.get("type"),
+                    "server": server.get("name"),
+                    "data": data,
+                }
             except ToolNotFoundError as e:
                 # Try next candidate
                 logger.info(
@@ -547,12 +556,20 @@ class ToolService:
 
             query = arguments.get("query") or arguments.get("q") or ""
             top_n = int(arguments.get("top_n", 5))
-            return web_search(query=query, top_n=top_n)
+            return {
+                "provider": "local",
+                "server": "default-local",
+                "data": web_search(query=query, top_n=top_n),
+            }
         if tool_name == "fetch":
             from src.tools.providers.local_fetch import fetch as local_fetch
 
             url = arguments.get("url") or ""
-            return local_fetch(url=url, timeout=float(arguments.get("timeout", 5.0)))
+            return {
+                "provider": "local",
+                "server": "default-local",
+                "data": local_fetch(url=url, timeout=float(arguments.get("timeout", 5.0))),
+            }
 
         raise ToolNotFoundError(
             f"No MCP server succeeded for tool '{tool_name}'. Errors: {'; '.join(errors)}"

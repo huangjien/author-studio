@@ -220,6 +220,53 @@ def _registry_prune() -> None:
         pass
 
 
+def _build_available_tools(agent: Agent) -> List[str]:
+    try:
+        tools = list(agent.tools or [])
+        for s in agent.mcp_servers or []:
+            for t in s.get("tools", []) or []:
+                if t not in tools:
+                    tools.append(t)
+        return tools
+    except Exception:
+        return list(agent.tools or [])
+
+
+def _build_mcp_guidelines(agent: Agent) -> str:
+    """Return instruction text that nudges the assistant to emit MCP directives.
+
+    The directive format:
+    MCP_DIRECTIVE:
+    {"tool": "fetch"|"web_search", "provider": "local"|"http"|"process", "arguments": { ... }}
+    - Emit exactly one directive line at the END of the reply IF a tool call is needed.
+    - Otherwise, omit the directive entirely.
+    - provider hints: use "process" for Wikipedia-oriented web_search when available;
+        use "local" for offline-only.
+    - arguments should include keys such as {"url": "https://..."} for
+        fetch or {"query": "...", "top_n": 3} for web_search.
+    """
+    tools = _build_available_tools(agent)
+    if not tools:
+        return (
+            "When a tool call is needed, emit a final line:\n"
+            'MCP_DIRECTIVE: {"tool": "fetch"|"web_search", \
+                "provider": "local"|"http"|"process", "arguments": { ... }}\n'
+            "If no tool is required, do not emit MCP_DIRECTIVE."
+        )
+    tool_list = ", ".join(sorted(set(tools)))
+    return (
+        "You can decide whether to call an MCP tool. Available tools: "
+        f"{tool_list}. If a tool call is needed, append ONE final line:\n"
+        'MCP_DIRECTIVE: {"tool": "fetch"|"web_search", \
+            "provider": "local"|"http"|"process", "arguments": { ... }}\n'
+        '- Prefer provider="process" for Wikipedia queries if configured.\n'
+        '- Use provider="local" for offline-only usage.\n'
+        '- For fetch, include {"url": "https://..."}. For web_search, \
+            include {"query": "..."} and optional {"top_n": N}.\n'
+        "If no tool is required, DO NOT include MCP_DIRECTIVE."
+    )
+
+
 def _ensure_session_assistant(
     agent: Agent,
     accept_language: Optional[str],
@@ -248,6 +295,24 @@ def _ensure_session_assistant(
         # get_localized_prompt returns (selected, text)
         selected_language, _ = get_localized_prompt(agent.prompts or {}, accept_language)
 
+    # Optionally append MCP routing guidelines when explicitly enabled via env
+    try:
+        enable_hints = os.getenv("AGENTS_AUTOGEN_MCP_HINTS", "").strip().lower() in (
+            "1",
+            "true",
+            "yes",
+            "on",
+        )
+        if enable_hints:
+            mcp_guidelines = _build_mcp_guidelines(agent)
+            if system_message:
+                system_message = system_message.strip() + "\n\n" + mcp_guidelines
+            else:
+                system_message = mcp_guidelines
+    except Exception:
+        # Non-fatal; continue without guidelines
+        pass
+
     if _mock_mode_enabled():
         assistant = _MockAssistant(agent.agent_id)
     else:
@@ -257,7 +322,62 @@ def _ensure_session_assistant(
 
         Client = agentchat["OpenAIChatCompletionClient"]
         Assistant = agentchat["AssistantAgent"]
-        client = Client(model=model)
+
+        # Pass through optional client kwargs to support non-OpenAI-compatible models
+        client_kwargs: Dict[str, Any] = {}
+        for k in ("api_key", "base_url", "model_info", "timeout"):
+            v = llm_config.get(k)
+            if v is not None:
+                client_kwargs[k] = v
+
+        provider = str(llm_config.get("provider", "")).lower()
+        if provider == "deepseek":
+            # Default base_url and API key for DeepSeek if not provided in llm_config
+            client_kwargs.setdefault("base_url", "https://api.deepseek.com/v1")
+            env_key = os.getenv("DEEPSEEK_API_KEY") or os.getenv("OPENAI_API_KEY")
+            if env_key and "api_key" not in client_kwargs:
+                client_kwargs["api_key"] = env_key
+            # Many autogen clients require a model_info when model is not an OpenAI canonical name
+            client_kwargs.setdefault(
+                "model_info",
+                {
+                    "name": model,
+                    "compatibility": "openai",
+                    "vision": False,
+                    "function_calling": False,
+                    "json_output": False,
+                    "family": "deepseek",
+                },
+            )
+        elif provider == "ollama":
+            # Provide an optional base URL via environment
+            # and a generic model_info to bypass name checks
+            ollama_base = os.getenv("OLLAMA_BASE_URL")
+            if ollama_base:
+                client_kwargs.setdefault("base_url", ollama_base)
+            client_kwargs.setdefault(
+                "model_info",
+                {
+                    "name": model,
+                    "compatibility": "openai",
+                    "vision": False,
+                    "function_calling": False,
+                    "json_output": False,
+                    "family": "ollama",
+                },
+            )
+
+        # Ensure model_info contains required keys for autogen-ext >=0.4.7
+        mi = client_kwargs.get("model_info")
+        if isinstance(mi, dict):
+            mi.setdefault("name", model)
+            mi.setdefault("compatibility", "openai")
+            mi.setdefault("vision", False)
+            mi.setdefault("function_calling", False)
+            mi.setdefault("json_output", False)
+            mi.setdefault("family", provider if provider else "openai")
+
+        client = Client(model=model, **client_kwargs)
 
         assistant_kwargs: Dict[str, Any] = {
             "name": _to_valid_agent_name(agent.agent_id),

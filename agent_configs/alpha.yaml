@@ -7,7 +7,9 @@ workflow:
   type: single_step
 prompts:
   en: "Hello"
-tools: []
+tools:
+  - fetch
+  - web_search
 mcp_servers:
   - name: Fetch
     type: process

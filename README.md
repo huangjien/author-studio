@@ -220,6 +220,56 @@ pip install -U "autogen-agentchat==0.7.5" "autogen-ext[openai,mcp]==0.7.5"
 pip install .[autogen-stable]
 ```
 
+### MCP tools and directives
+Agents can declare MCP servers in their YAML via `mcp_servers`. The LLM response may include an `MCP_DIRECTIVE:` marker containing a JSON object that instructs the server to run a tool. The `/agents/{agent_id}/invoke` route extracts this directive and routes the call through `ToolService.invoke`.
+
+- Supported tool providers
+  - `process`: stdio MCP servers launched as subprocesses (e.g., `mcp-server-fetch`)
+  - `http`: HTTP MCP servers that expose tools via REST
+  - `local`: built-in local providers for `web_search` and `fetch` as graceful fallbacks
+
+- Response shape when a tool runs
+  - The route includes `tool_used` and a `tool_result` dict.
+  - `tool_result` is wrapped with metadata:
+    ```json
+    {
+      "provider": "process|http|local",
+      "server": "<server-name>",
+      "data": { /* tool-specific payload */ }
+    }
+    ```
+  - Example (`fetch` via a process server):
+    ```bash
+    curl -sS -X POST http://localhost:8000/agents/alpha-bot/invoke \
+      -H "Content-Type: application/json" \
+      -H "X-API-Key: $(tail -n 1 keys.txt)" \
+      -d '{"input": "Please fetch https://en.wikipedia.org/wiki/LangChain. Emit MCP_DIRECTIVE with provider=process and tool=fetch."}' \
+      | jq '{tool_used, tool_result: {provider: .tool_result.provider, server: .tool_result.server, has_data: (.tool_result.data != null)}}'
+    # {
+    #   "tool_used": "fetch",
+    #   "tool_result": { "provider": "process", "server": "Fetch", "has_data": true }
+    # }
+    ```
+
+- Local fallbacks
+  - If no MCP server succeeds, `ToolService.invoke` falls back to local implementations and still returns `provider=local`, `server=default-local`, and a `data` payload.
+
+- Configuring MCP servers
+  - In agent YAML (example from `agent_configs/alpha.yaml`):
+    ```yaml
+    name: Alpha Bot
+    llm:
+      provider: openai
+      model: gpt-4o-mini
+    tools: ["fetch", "web_search"]
+    mcp_servers:
+      - name: Fetch
+        type: process
+        command: mcp-server-fetch
+        persistent: true
+        tools: ["fetch", "web_search"]
+    ```
+
 Configuration
 - See `docs/configuration.md` for a complete list of environment variables and an example `.env` snippet.
 - Key flags covered there include:

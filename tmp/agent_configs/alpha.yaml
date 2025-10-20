@@ -1,0 +1,17 @@
+
+            name: Alpha Bot
+            llm:
+              provider: openai
+              model: gpt-4o-mini
+            workflow:
+              type: single_step
+            prompts:
+              en: "Hello"
+            tools: []
+            mcp_servers:
+              - name: proc-fetch
+                type: process
+                tools: ["fetch", "web_search"]
+                command: mcp-server-fetch
+                persistent: true
+            

@@ -159,9 +159,15 @@ def invoke_agent(
             service = ToolService()
             tool_result = service.invoke(agent.agent_id, tool_name, args)
             tool_used = tool_name
+            # Normalize tool_result to handle wrapped metadata (provider/server) and legacy dicts
+            tr = (
+                tool_result.get("data")
+                if isinstance(tool_result, dict) and "data" in tool_result
+                else tool_result
+            )
             # Build a human-readable summary for output
             if tool_name == "web_search":
-                results = tool_result.get("results") if isinstance(tool_result, dict) else None
+                results = tr.get("results") if isinstance(tr, dict) else None
                 if isinstance(results, list) and results:
                     lines = []
                     for i, item in enumerate(results[:5], start=1):
@@ -173,7 +179,7 @@ def invoke_agent(
                     # Fallback summary
                     output = f"[{agent.agent_id}] web_search: {tool_result}"
             elif tool_name == "fetch":
-                res_list = tool_result.get("results") if isinstance(tool_result, dict) else None
+                res_list = tr.get("results") if isinstance(tr, dict) else None
                 r0 = res_list[0] if isinstance(res_list, list) and res_list else {}
                 status = r0.get("status") or r0.get("status_code") or r0.get("code")
                 body = r0.get("body")

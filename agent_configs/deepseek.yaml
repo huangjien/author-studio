@@ -1,7 +1,7 @@
-name: Qwen3 8B
+name: deepseek
 llm:
-  provider: ollama
-  model: qwen3:8b
+  provider: deepseek
+  model: deepseek-chat
 workflow:
   type: autogen
 prompts:
@@ -60,4 +60,24 @@ prompts:
        - 如果任务涉及规划，请提供逐步的策略。
     5. 错误处理
        - 如果请求不可能或违反约束，请解释原因并提供更安全或更现实的替代方案。
-tools: []
+tools:
+  - fetch
+  - web_search
+mcp_servers:
+  - name: default-fetch
+    type: process
+    tools:
+      - fetch
+      - web_search
+    command: uvx
+    args:
+      - mcp-server-fetch
+    env: {}
+    persistent: true
+    initialize_timeout: 3.0
+    list_tools_timeout: 3.0
+    call_timeout: 5.0
+    tool_call_retries: 1
+    retry_backoff_ms: 250
+    priority: high
+
