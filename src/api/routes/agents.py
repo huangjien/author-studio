@@ -1,5 +1,4 @@
 import json
-import os
 import re
 from typing import Any, Dict, Optional
 
@@ -22,6 +21,7 @@ from src.services.tool_service import ToolService
 # Removed smart-invoke native import to align with AutoGen-only workflow
 # from src.services.agent_service import invoke_agent as invoke_agent_native
 
+import os
 router = APIRouter()
 registry = AgentRegistry()
 

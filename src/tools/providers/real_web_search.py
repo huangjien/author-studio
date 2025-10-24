@@ -63,3 +63,4 @@ def web_search(query: str, top_n: int = 5) -> Dict[str, Any]:
         "query": query,
         "results": results,
     }
+
